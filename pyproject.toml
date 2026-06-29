@@ -1,0 +1,31 @@
+[project]
+name = "secure-doc-pipeline"
+version = "0.1.0"
+description = "Secure document summary and factual evaluation pipeline"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "deepeval>=4.0.7",
+    "fastapi>=0.138.1",
+    "google-genai>=2.10.0",
+    "ollama>=0.6.2",
+    "portalocker>=3.2.0",
+    "pydantic>=2.13.4",
+    "uvicorn>=0.49.0",
+]
+
+[tool.uv]
+# Enforce a synchronized lockfile strategy
+package = false
+
+
+
+[dependency-groups]
+dev = [
+    "poethepoet>=0.47.0",
+]
+
+[tool.poe.tasks]
+# Define custom execution shortcuts
+run-eval = "python main.py"
+server = "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"

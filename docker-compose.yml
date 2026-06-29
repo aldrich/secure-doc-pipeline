@@ -1,0 +1,36 @@
+services:
+  # Container A: The FastAPI Web Application Layer
+  web-api:
+    build: .
+    container_name: clinical_api_service
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama-service:11434
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - ollama-service
+    volumes:
+      - .:/app
+    networks:
+      - pipeline-network
+
+  # Container B: The Self-Hosted Inference Engine (Ollama)
+  ollama-service:
+    image: ollama/ollama:latest
+    container_name: local_ollama_engine
+    ports:
+      - "11434:11434"
+    volumes:
+      # Ensures that downloaded model files (like llama3.2) persist even if you delete or stop the containers
+      - ollama_storage:/root/.ollama
+    networks:
+      - pipeline-network
+    attach: false
+
+volumes:
+  ollama_storage:
+
+networks:
+  pipeline-network:
+    driver: bridge
