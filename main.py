@@ -11,15 +11,10 @@ from google import genai
 from google.genai import types
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
+from ollama_eval import run_evaluation_llama
 from pipeline_core import ClinicalSummary
 from pipeline_core import extract_structured_data
-
-class EvaluationMetrics(BaseModel):
-    passed: bool = Field(description="True if the extracted metrics are completely grounded in the transcript without any fabricated details.")
-    faithfulness_score: float = Field(description="Score between 0.0 and 1.0. A 1.0 means perfect alignment; deduction occurs for hallucinations or missed items.")
-    unsupported_exercises: List[str] = Field(description="Exercises listed in the summary that the patient never actually performed or mentioned in the transcript.")
-    omitted_symptoms: List[str] = Field(description="Critical symptoms or difficulties vocalized by the patient in the transcript that failed to make it into the summary.")
-    latency_seconds: float = Field(description="Total duration of the evaluation execution step.")
+from evaluation_metrics import EvaluationMetrics
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -36,7 +31,7 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
-async def run_evaluation_async(summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
+async def run_evaluation_gemini(summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
     """
     Evaluates a generated ClinicalSummary against its original source text transcript
     to guarantee clinical auditing data integrity.
@@ -114,7 +109,12 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
     try:
         structured_output = extract_structured_data(payload.transcript)
 
-        metrics = await run_evaluation_async(
+        # metrics = await run_evaluation_gemini(
+        #     summary_data=structured_output,
+        #     source_transcript=payload.transcript,
+        #     session_id=session_id
+        # )
+        metrics = await run_evaluation_llama(
             summary_data=structured_output,
             source_transcript=payload.transcript,
             session_id=session_id
@@ -153,7 +153,8 @@ async def main():
 
     logger.info(f"Triggering evaluation pipeline...")
 
-    metrics = await run_evaluation_async(sample_summary, source_transcript)
+    # metrics = await run_evaluation_gemini(sample_summary, source_transcript)
+    metrics = await run_evaluation_llama(sample_summary, source_transcript)
 
     logger.info("Pipeline Execution Metrics:")
     logger.info(f"Latency:     {metrics.latency_seconds}s")
