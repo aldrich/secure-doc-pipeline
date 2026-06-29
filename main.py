@@ -100,7 +100,7 @@ class SessionRequest(BaseModel):
 @app.post("/api/v1/process-session", status_code=202)
 async def process_session(payload: SessionRequest, background_tasks: BackgroundTasks):
 
-    session_id = str(uuid.uuid4())[:8]
+    session_id = uuid.uuid4().hex[:8]
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
 
     try:
