@@ -6,6 +6,7 @@ import logging
 import asyncio
 
 from typing import List
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -20,13 +21,14 @@ class EvaluationMetrics(BaseModel):
     omitted_symptoms: List[str] = Field(description="Critical symptoms or difficulties vocalized by the patient in the transcript that failed to make it into the summary.")
     latency_seconds: float = Field(description="Total duration of the evaluation execution step.")
 
+load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
+gemini_model = os.environ.get("GEMINI_MODEL")
 
-logging.basicConfig(level=logging.INFO, 
+logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
-
 
 if not api_key:
     logger.warning("GEMINI_API_KEY not found from environment.")
@@ -70,9 +72,15 @@ async def run_evaluation_async(summary_data: ClinicalSummary, source_transcript:
     Symptoms Logged: {summary_data.symptoms_mentioned}
     Next Steps Plan: {summary_data.next_steps}
     """
+    
+    if not gemini_model:
+        logger.warning("GEMINI_MODEL not found from environment.")
+        raise ValueError("GEMINI_MODEL is missing from the container environment!")
+
+    logger.info(f"using {gemini_model=}")
 
     response = await client.aio.models.generate_content(
-        model='gemini-2.5-flash',
+        model=gemini_model,
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -126,7 +134,6 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline processing failed: {str(e)}")
-
 
 async def main():
     

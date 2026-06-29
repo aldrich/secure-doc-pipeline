@@ -5,3 +5,4 @@ ollama==0.1.7
 deepeval==4.0.7
 portalocker>=2.7.0
 google-genai>=0.1.0
+python-dotenv>=1.0.0

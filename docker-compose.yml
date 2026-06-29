@@ -8,6 +8,7 @@ services:
     environment:
       - OLLAMA_HOST=http://ollama-service:11434
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL}
     depends_on:
       - ollama-service
     volumes:

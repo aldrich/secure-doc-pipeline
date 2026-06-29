@@ -10,10 +10,6 @@ ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
 
-
-# RUN pip install --no-cache-dir --upgrade pip && \
-#     pip install --no-cache-dir -r requirements.txt
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r requirements.txt
 
