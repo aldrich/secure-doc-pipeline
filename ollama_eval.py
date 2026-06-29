@@ -52,7 +52,7 @@ async def run_evaluation_llama(summary_data: ClinicalSummary, source_transcript:
     Background worker function. Runs the evaluation and logs to a data store
     without keeping the HTTP connection hanging.
     """
-    print(f"🛠️ [Job {session_id}] Starting evaluation in the background...")
+    logger.info(f"[Job {session_id}] Starting evaluation in the background...")
 
     test_case = LLMTestCase(
         input=source_transcript,
@@ -70,8 +70,8 @@ async def run_evaluation_llama(summary_data: ClinicalSummary, source_transcript:
     metric.measure(test_case)
 
     # Simulate Database Storage/Flagging Logic
-    print(f"📊 [Job {session_id}] Eval complete. Score: {metric.score}")
-    print(f"📊 [Job Score: {metric.score}] Reason for score: {metric.reason}")
+    logger.info(f"[Job {session_id}] Eval complete. Score: {metric.score}")
+    logger.info(f"[Job Score: {metric.score}] Reason for score: {metric.reason}")
 
     eval_metric = EvaluationMetrics(
         passed=metric.is_successful(),
@@ -85,12 +85,6 @@ async def run_evaluation_llama(summary_data: ClinicalSummary, source_transcript:
     eval_metric.latency_seconds = elapsed
     
     return eval_metric
-
-    # if metric.is_successful():
-    #     print(f"💾 [Job {session_id}] STATUS: PASSED. Commit entries cleanly to database.")
-    # else:
-    #     print(f"🚨 [Job {session_id}] STATUS: FAILED. Flagging summary for manual clinician review!")
-    #     print(f"⚠️ Reason: {metric.reason}")
     
 async def main():
     

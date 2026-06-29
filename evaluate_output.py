@@ -1,11 +1,18 @@
+import logging
+import os
+import sys
+
 from deepeval.metrics import HallucinationMetric
 from deepeval.test_case import LLMTestCase
-# Import the explicit Ollama model wrapper from deepeval
 from deepeval.models import OllamaModel
 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
-# 1. Prepare the inputs for the automated judge
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format='[%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+
 source_transcript = """
 The patient arrived a bit anxious today but warmed up during the cognitive tasks. 
 We spent the first twenty minutes working on the spatial memory grid exercises and then 
@@ -20,11 +27,6 @@ Patient was anxious initially but improved. Completed spatial memory grid and vo
 Complained of mild headaches and word-finding issues when tired. Ordered to practice articulation sheet 
 twice a day and log headaches.
 """
-
-# bad_summary = """
-# Patient completed advanced spinal mobility physical therapy. Doctor prescribed 400mg Ibuprofen 
-# for severe back spasms and told them to return in two weeks.
-# """
 
 bad_summary = """
 Anxious at first but improved. Completed spatial memory grid and vocal articulation exercises. 
@@ -54,15 +56,15 @@ def run_evaluation(summary_to_test: str):
     # 5. Measure the test case
     metric.measure(test_case)
     
-    print(f"\n📊 Evaluation Score (Lower is better for hallucination): {metric.score}")
-    print(f"Reasoning: {metric.reason}")
-    print(f"Status: {'✅ PASSED' if metric.is_successful() else '❌ FAILED'}")
+    logger.info(f"Evaluation Score (Lower is better for hallucination): {metric.score}")
+    logger.info(f"Reasoning: {metric.reason}")
+    logger.info(f"Status: {'PASSED' if metric.is_successful() else '❌ FAILED'}")
 
 if __name__ == "__main__":
-    # print("🧠 Running Eval on ACCURATE Summary...")
+    # logger.info("Running Eval on ACCURATE Summary...")
     # run_evaluation(good_summary)
     
-    print("\n" + "="*40 + "\n")
+    logger.info("\n" + "="*40 + "\n")
     
-    print("🚨 Running Eval on HALLUCINATED Summary...")
+    logger.info("Running Eval on HALLUCINATED Summary...")
     run_evaluation(bad_summary)

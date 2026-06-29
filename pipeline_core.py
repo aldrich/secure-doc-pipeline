@@ -1,7 +1,14 @@
 import json
+import logging
+import sys
 from typing import List
 from pydantic import BaseModel, Field
 import ollama
+
+logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format='[%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
 
 # 1. Define the strict data structure you want the AI to return
 # class ClinicalSummary1(BaseModel):
@@ -58,13 +65,13 @@ def extract_structured_data(transcript: str) -> ClinicalSummary:
 
 # 3. Run the extraction pipeline
 if __name__ == "__main__":
-    print("⏳ Parsing transcript using local LLM...")
+    logger.info("Parsing transcript using local LLM...")
     try:
         result = extract_structured_data(raw_transcript)
-        print("\n✅ Successfully structured the messy data!")
+        logger.info("Successfully structured the messy data!")
         
         # Print it as a pretty JSON string to see the structural formatting
-        print(json.dumps(result.model_dump(), indent=2))
+        logger.info(json.dumps(result.model_dump(), indent=2))
         
     except Exception as e:
-        print(f"\n❌ Pipeline failed: {e}")
+        logger.info(f"\n❌ Pipeline failed: {e}")

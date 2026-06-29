@@ -1,98 +1,21 @@
 import sys
 import uuid
-import os
-import time
 import logging
 import asyncio
 
-from typing import List
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from pydantic import BaseModel, Field
-from ollama_eval import run_evaluation_llama
+from pydantic import BaseModel
+from evaluator import run_evaluation
 from pipeline_core import ClinicalSummary
 from pipeline_core import extract_structured_data
-from evaluation_metrics import EvaluationMetrics
 
 load_dotenv()
-api_key = os.environ.get("GEMINI_API_KEY")
-gemini_model = os.environ.get("GEMINI_MODEL")
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
                     format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
-
-if not api_key:
-    logger.warning("GEMINI_API_KEY not found from environment.")
-    raise ValueError("GEMINI_API_KEY is missing from the container environment!")
-
-client = genai.Client(api_key=api_key)
-
-async def run_evaluation_gemini(summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
-    """
-    Evaluates a generated ClinicalSummary against its original source text transcript
-    to guarantee clinical auditing data integrity.
-    """
-    start_time = time.perf_counter()
-
-    # Normally, you'd pull the source transcript using the session_id from your database.
-    # For this illustration, we assume it is accessible or passed alongside your context.
-    # source_transcript = " [Retrieve original raw transcript text via session_id or state here] "
-
-    logger.info(f"Running evaluation in background for session id {session_id}")
-
-    system_instruction = """
-    You are an AI Medical Auditor specialized in validating clinical notes. Your sole task is to compare
-    a 'Raw Session Transcript' against an extracted 'Clinical Summary structure' to verify factual accuracy.
-
-    Pay close attention to:
-    1. Exercises: Did the summary list exercises that weren't actually executed?
-    2. Symptoms: Did the summary forget to document physical or cognitive complaints explicit in the transcript?
-
-    Strictly output your response matching the requested JSON Schema configuration.
-    """
-
-    prompt = f"""
-    Please perform an audit validation for Session ID: {session_id}
-
-    --- ORIGINAL SOURCE TRANSCRIPT ---
-    {source_transcript}
-
-    --- EXTRACTED SUMMARY DATA TO EVALUATE ---
-    Patient Mood: {summary_data.patient_mood}
-    Exercises Logged: {summary_data.exercises_completed}
-    Symptoms Logged: {summary_data.symptoms_mentioned}
-    Next Steps Plan: {summary_data.next_steps}
-    """
-    
-    if not gemini_model:
-        logger.warning("GEMINI_MODEL not found from environment.")
-        raise ValueError("GEMINI_MODEL is missing from the container environment!")
-
-    logger.info(f"using {gemini_model=}")
-
-    response = await client.aio.models.generate_content(
-        model=gemini_model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            response_mime_type="application/json",
-            response_schema=EvaluationMetrics,
-            temperature=0.0,
-        )
-    )
-
-    raw_parsed = response.parsed
-    if not isinstance(raw_parsed, EvaluationMetrics):
-        raise ValueError(f"Unexpected response shape: {type(raw_parsed)}")
-    metrics: EvaluationMetrics = raw_parsed
-
-    elapsed = round(time.perf_counter() - start_time, 2)
-    metrics.latency_seconds = elapsed
-    return metrics
 
 app = FastAPI(title="Secure Clinical Documentation Pipeline")
 
@@ -109,23 +32,14 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
     try:
         structured_output = extract_structured_data(payload.transcript)
 
-        # metrics = await run_evaluation_gemini(
-        #     summary_data=structured_output,
-        #     source_transcript=payload.transcript,
-        #     session_id=session_id
-        # )
-        metrics = await run_evaluation_llama(
-            summary_data=structured_output,
-            source_transcript=payload.transcript,
-            session_id=session_id
+        background_tasks.add_task(
+            run_evaluation,
+            structured_output,
+            payload.transcript,
+            session_id,            
         )
 
-        logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-        logger.info(f"Latency recorded: {metrics.latency_seconds}s")
-        logger.info(f"Factual alignment check: {metrics.passed}")
-
         # TODO: Write to database / trigger webhook back to n8n here...
-
         return {
             "status": "processing_verification",
             "session_id": session_id,
@@ -145,21 +59,15 @@ async def main():
     """
     
     sample_summary = ClinicalSummary(
-        patient_mood="apologetic",
+        patient_mood="obvious",
         exercises_completed=["balance", "gait"],
-        symptoms_mentioned=["nausea"],
-        next_steps=""
+        symptoms_mentioned=[],
+        next_steps="schedule for 60 mins of strength exercises"
     )
 
     logger.info(f"Triggering evaluation pipeline...")
 
-    # metrics = await run_evaluation_gemini(sample_summary, source_transcript)
-    metrics = await run_evaluation_llama(sample_summary, source_transcript)
-
-    logger.info("Pipeline Execution Metrics:")
-    logger.info(f"Latency:     {metrics.latency_seconds}s")
-    logger.info(f"Score:       {metrics.faithfulness_score}")
-    logger.info(f"Status:      {'Passed' if metrics.passed else 'Flagged for Review'}")
+    await run_evaluation(sample_summary, source_transcript)
 
 if __name__ == "__main__":
     asyncio.run(main())
