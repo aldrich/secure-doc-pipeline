@@ -1,13 +1,11 @@
-import sys
+import sys, logging
 import uuid
-import logging
 import asyncio
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from evaluator import run_evaluation
-from pipeline_core import ClinicalSummary
-from pipeline_core import extract_structured_data
+from evaluation.evaluator import run_evaluation
+from schemas.clinical_summary import ClinicalSummary
 
 load_dotenv()
 
@@ -29,7 +27,7 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
 
     try:
-        structured_output = extract_structured_data(payload.transcript)
+        structured_output = ClinicalSummary.extract_structured_data(payload.transcript)
 
         background_tasks.add_task(
             run_evaluation,
@@ -39,6 +37,7 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
         )
 
         # TODO: Write to database / trigger webhook back to n8n here...
+        
         return {
             "status": "processing_verification",
             "session_id": session_id,
