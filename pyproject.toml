@@ -18,8 +18,6 @@ dependencies = [
 # Enforce a synchronized lockfile strategy
 package = false
 
-
-
 [dependency-groups]
 dev = [
     "poethepoet>=0.47.0",

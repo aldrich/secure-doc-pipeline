@@ -1,37 +1,18 @@
 import json
-import logging
-import sys
+import logging, sys
 from typing import List
 from pydantic import BaseModel, Field
 import ollama
 
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
-
-# 1. Define the strict data structure you want the AI to return
-# class ClinicalSummary1(BaseModel):
-#     patient_mood: str = Field(description="The emotional state of the patient during the session.")
-#     exercises_completed: List[str] = Field(description="List of specific physical or cognitive exercises performed.")
-#     symptoms_mentioned: List[str] = Field(description="Any symptoms, pains, or cognitive difficulties the patient complained about.")
-#     next_steps: str = Field(description="The plan or homework for the next session.")
-
 class ClinicalSummary(BaseModel):
     patient_mood: str = Field(description="The emotional state of the patient during the session.")
     exercises_completed: List[str] = Field(description="List of specific physical or cognitive exercises performed.")
     symptoms_mentioned: List[str] = Field(description="Any symptoms, pains, or cognitive difficulties the patient complained about.")
     next_steps: str = Field(description="The plan or homework for the next session.")
 
-
-# 2. Mock a messy, real-world conversational transcript
 raw_transcript = """
-The patient arrived a bit anxious today but warmed up during the cognitive tasks. 
-We spent the first twenty minutes working on the spatial memory grid exercises and then 
-moved on to vocal articulation drills. She mentioned experiencing some mild headaches 
-over the weekend and a bit of frustration with word-finding when fatigued. 
-For next time, I told her to practice the articulation sheet twice a day and keep track 
-of when the headaches occur.
+The patient presented as highly energetic but struggled significantly with focused attention early in the session. We dedicated fifteen minutes to the abstract pattern-matching blocks, where he demonstrated a tendency to rush through errors, followed by a series of trail-making sequencing tasks. He reported sleeping poorly over the past three days and noted that a persistent ringing in his left ear has made concentrating difficult in noisy environments. For our next appointment, I instructed him to complete the level-two sequence sheets in a quiet room and log his daily sleep duration.
 """
 
 def extract_structured_data(transcript: str) -> ClinicalSummary:
@@ -63,8 +44,12 @@ def extract_structured_data(transcript: str) -> ClinicalSummary:
     structured_data = ClinicalSummary.model_validate_json(raw_content)
     return structured_data
 
-# 3. Run the extraction pipeline
-if __name__ == "__main__":
+def main():
+    
+    logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format='[%(levelname)s] %(message)s')
+    
     logger.info("Parsing transcript using local LLM...")
     try:
         result = extract_structured_data(raw_transcript)
@@ -75,3 +60,6 @@ if __name__ == "__main__":
         
     except Exception as e:
         logger.info(f"\n❌ Pipeline failed: {e}")
+
+if __name__ == "__main__":
+    main()
