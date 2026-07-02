@@ -10,6 +10,7 @@ dependencies = [
     "google-genai>=2.10.0",
     "ipywidgets>=8.1.8",
     "ollama>=0.6.2",
+    "openai>=2.44.0",
     "portalocker>=3.2.0",
     "pydantic>=2.13.4",
     "uvicorn>=0.49.0",
@@ -28,3 +29,4 @@ dev = [
 # Define custom execution shortcuts
 run-eval = "python main.py"
 server = "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+extract-demo = "uv run --with google.genai python -m schemas.clinical_summary"

@@ -10,7 +10,7 @@ from evaluation.custom_ollama_eval_model import CustomOllamaEvalModel
 from evaluation.ollama_evaluator import ClinicalSummaryOllamaEvaluator
 
 from google import genai
-from google.genai import types
+from google.genai import types as genai_types
 from deepeval.metrics import HallucinationMetric
 from deepeval.test_case import LLMTestCase
 
@@ -78,7 +78,7 @@ class GeminiEvaluator(EvaluationEngine):
         response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=genai_types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
                 response_schema=EvaluationMetrics,

@@ -27,7 +27,7 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
 
     try:
-        structured_output = ClinicalSummary.extract_structured_data(payload.transcript)
+        structured_output = ClinicalSummary.extract_structured_data_ollama(payload.transcript)
 
         background_tasks.add_task(
             run_evaluation,
