@@ -2,7 +2,7 @@ import ollama
 
 from deepeval.models import DeepEvalBaseLLM
 class CustomOllamaEvalModel(DeepEvalBaseLLM):
-    def __init__(self, model_name="llama3:8b"):
+    def __init__(self, model_name="llama3.1:8b"):
         self.__class__.__abstractmethods__ = frozenset()
         self.model_name = model_name
 

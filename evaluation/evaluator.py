@@ -155,36 +155,52 @@ def get_evaluator(engine: Literal["gemini", "llama"]) -> EvaluationEngine:
 
 async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str = ""):
     """Unified evaluation function using the configured engine."""
-    engine_type = os.environ.get("EVAL_ENGINE", "llama").lower()
+    
+    # engine_type = os.environ.get("EVAL_ENGINE", "llama").lower()
+    engine_type = 'llama'
+    evaluator = get_evaluator(engine_type)
 
-    if engine_type == "custom":
-        logger.info("Using custom metrics")
+    logger.debug(f"{engine_type=}")
+    logger.debug(f"{summary_data=}")
+    logger.debug(f"{source_transcript=}")
+
+    metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
+
+    logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
+    logger.info(f"Latency recorded: {metrics.latency_seconds}s")
+    logger.info(f"Factual alignment check: {metrics.passed}")
+    
+    
+    # engine_type = os.environ.get("EVAL_ENGINE", "llama").lower()
+
+    # if engine_type == "custom":
+    #     logger.info("Using custom metrics")
         
-        model = os.environ.get("LLAMA_MODEL_FOR_EVALUATION")
-        if model is None:
-            message = 'LLAMA_MODEL_FOR_EVALUATION not defined in .env'
-            logger.error(message)
-            raise ConfigError(message)
+    #     model = os.environ.get("LLAMA_MODEL_FOR_EVALUATION")
+    #     if model is None:
+    #         message = 'LLAMA_MODEL_FOR_EVALUATION not defined in .env'
+    #         logger.error(message)
+    #         raise ConfigError(message)
         
-        evaluator = ClinicalSummaryOllamaEvaluator(model_name=model or "")
-        metrics = await evaluator.evaluate(summary_data=summary_data, source_transcript=source_transcript, session_id=session_id)
+    #     evaluator = ClinicalSummaryOllamaEvaluator(model_name=model or "")
+    #     metrics = await evaluator.evaluate(summary_data=summary_data, source_transcript=source_transcript, session_id=session_id)
 
-        logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-        logger.info(f"exercises score: {metrics.exercises_score}. Reason: {metrics.exercises_reason}")
-        logger.info(f"symptoms score: {metrics.symptoms_score}. Reason: {metrics.symptoms_reason}")
-        logger.info(f"Latency recorded: {metrics.latency_seconds}s")
-        logger.info(f"Factual alignment check: {metrics.passed}")
+    #     logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
+    #     logger.info(f"exercises score: {metrics.exercises_score}. Reason: {metrics.exercises_reason}")
+    #     logger.info(f"symptoms score: {metrics.symptoms_score}. Reason: {metrics.symptoms_reason}")
+    #     logger.info(f"Latency recorded: {metrics.latency_seconds}s")
+    #     logger.info(f"Factual alignment check: {metrics.passed}")
 
-    else:
+    # else:
 
-        evaluator = get_evaluator(engine_type) # pyright: ignore[reportArgumentType]
+    #     evaluator = get_evaluator(engine_type) # pyright: ignore[reportArgumentType]
 
-        logger.debug(f"{summary_data=}")
-        logger.debug(f"{engine_type=}")
-        logger.debug(f"{source_transcript=}")
+    #     logger.debug(f"{summary_data=}")
+    #     logger.debug(f"{engine_type=}")
+    #     logger.debug(f"{source_transcript=}")
 
-        metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
+    #     metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
 
-        logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-        logger.info(f"Latency recorded: {metrics.latency_seconds}s")
-        logger.info(f"Factual alignment check: {metrics.passed}")
+    #     logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
+    #     logger.info(f"Latency recorded: {metrics.latency_seconds}s")
+    #     logger.info(f"Factual alignment check: {metrics.passed}")
