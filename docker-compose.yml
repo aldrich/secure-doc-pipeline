@@ -9,10 +9,12 @@ services:
       - OLLAMA_HOST=http://ollama-service:11434
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL}
+      - UV_LINK_MODE=copy
     depends_on:
       - ollama-service
     volumes:
       - .:/app
+      - venv-data:/app/.venv
     networks:
       - pipeline-network
 
@@ -31,6 +33,7 @@ services:
 
 volumes:
   ollama_storage:
+  venv-data:
 
 networks:
   pipeline-network:

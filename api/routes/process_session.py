@@ -11,7 +11,7 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
-                    format='[%(levelname)s] %(message)s')
+                    format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Secure Clinical Documentation Pipeline")

@@ -1,7 +1,9 @@
+from textwrap import dedent
 import os, logging, sys, time
 from typing import Literal
 from abc import ABC, abstractmethod
 
+from domain.config_error import ConfigError
 from schemas.clinical_summary import ClinicalSummary
 from schemas.evaluation_metrics import EvaluationMetrics
 from evaluation.custom_ollama_eval_model import CustomOllamaEvalModel
@@ -13,6 +15,18 @@ from deepeval.metrics import HallucinationMetric
 from deepeval.test_case import LLMTestCase
 
 logger = logging.getLogger(__name__)
+
+system_instruction = dedent("""\
+    You are an AI Medical Auditor specialized in validating clinical notes. Your sole task is to compare
+    a 'Raw Session Transcript' against an extracted 'Clinical Summary structure' to verify factual accuracy.
+
+    Pay close attention to:
+    1. Exercises: Did the summary list exercises that weren't actually executed?
+    2. Symptoms: Did the summary forget to document physical or cognitive complaints explicit in the transcript?
+
+    Strictly output your response matching the requested JSON Schema configuration.
+""")
+
 class EvaluationEngine(ABC):
     """Abstract base class for evaluation engines."""
 
@@ -24,33 +38,29 @@ class EvaluationEngine(ABC):
         pass
 
 class GeminiEvaluator(EvaluationEngine):
+    
     def __init__(self, api_key: str, model: str):
+        
         if not api_key:
-            logger.warning("GEMINI_API_KEY not found from environment.")
-            raise ValueError("GEMINI_API_KEY is missing from the container environment!")
+            message = "GEMINI_API_KEY not found from environment."
+            logger.error(message)
+            raise ValueError(message)
+        
         if not model:
-            logger.warning("GEMINI_MODEL not found from environment.")
-            raise ValueError("GEMINI_MODEL is missing from the container environment!")
+            message = "GEMINI_MODEL not found from environment."
+            logger.error(message)
+            raise ValueError(message)
 
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
+        
         start_time = time.perf_counter()
 
         logger.info(f"Running evaluation in background for session id {session_id}")
+        
         logger.info(f"using model={self.model}")
-
-        system_instruction = """
-        You are an AI Medical Auditor specialized in validating clinical notes. Your sole task is to compare
-        a 'Raw Session Transcript' against an extracted 'Clinical Summary structure' to verify factual accuracy.
-
-        Pay close attention to:
-        1. Exercises: Did the summary list exercises that weren't actually executed?
-        2. Symptoms: Did the summary forget to document physical or cognitive complaints explicit in the transcript?
-
-        Strictly output your response matching the requested JSON Schema configuration.
-        """
 
         prompt = f"""
         Please perform an audit validation for Session ID: {session_id}
@@ -86,14 +96,19 @@ class GeminiEvaluator(EvaluationEngine):
         return metrics
 
 class LlamaEvaluator(EvaluationEngine):
+    
     def __init__(self, model: str):
         if not model:
-            logger.warning("LLAMA_MODEL not found from environment.")
-            raise ValueError("LLAMA_MODEL is missing from environment!")
+            message = "LLAMA_MODEL_FOR_EVALUATION not found from environment."
+            logger.warning(message)
+            raise ValueError(message)
+        
         self.model = model
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
+        
         logger.info(f"Running evaluation in background for session id {session_id}")
+        
         logger.info(f"using model={self.model}")
 
         test_case = LLMTestCase(
@@ -108,9 +123,11 @@ class LlamaEvaluator(EvaluationEngine):
 
         eval_model = CustomOllamaEvalModel(model_name=self.model)
         metric = HallucinationMetric(threshold=0.5, model=eval_model)
+        
         await metric.a_measure(test_case)
 
         logger.info(f"Eval complete. Score: {metric.score}")
+        
         logger.info(f"Reason for score: {metric.reason}")
 
         elapsed = round(time.perf_counter() - start_time, 2)
@@ -142,8 +159,13 @@ async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, 
 
     if engine_type == "custom":
         logger.info("Using custom metrics")
-        # model = os.environ.get("LLAMA_MODEL")
-        model = "llama3.2:3b"
+        
+        model = os.environ.get("LLAMA_MODEL_FOR_EVALUATION")
+        if model is None:
+            message = 'LLAMA_MODEL_FOR_EVALUATION not defined in .env'
+            logger.error(message)
+            raise ConfigError(message)
+        
         evaluator = ClinicalSummaryOllamaEvaluator(model_name=model or "")
         metrics = await evaluator.evaluate(summary_data=summary_data, source_transcript=source_transcript, session_id=session_id)
 
