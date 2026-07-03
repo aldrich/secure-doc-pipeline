@@ -1,17 +1,20 @@
+import os
 import sys, logging
+from typing import Literal, cast
 import uuid
 import asyncio
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from evaluation.evaluator import run_evaluation
+from extraction.extractor import get_extractor, run_extraction
 from schemas.clinical_summary import ClinicalSummary
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
-                    format='%(levelname)s: %(message)s')
+                    format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Secure Clinical Documentation Pipeline")
@@ -26,9 +29,11 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
     session_id = uuid.uuid4().hex[:8]
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
 
-    try:
-        structured_output = ClinicalSummary.extract_structured_data_openai(payload.transcript)
+    load_dotenv(override=True)
 
+    try:
+        structured_output = run_extraction(payload.transcript)
+        
         background_tasks.add_task(
             run_evaluation,
             structured_output,

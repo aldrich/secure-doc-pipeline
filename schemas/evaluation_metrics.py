@@ -1,5 +1,28 @@
-from typing import List
+from typing import List, Literal
 from pydantic import BaseModel, Field
+
+class UnsupportedClaim(BaseModel):
+    claim: str
+    evidence: str | None
+
+class OmittedInformation(BaseModel):
+    information: str
+    importance: Literal["low", "medium", "high"]
+
+class Contradiction(BaseModel):
+    summary_statement: str
+    transcript_evidence: str
+
+class SummaryEvaluation(BaseModel):
+    faithful: bool
+    score: float = Field(ge=0, le=1)
+
+    unsupported_claims: list[UnsupportedClaim]
+    omitted_information: list[OmittedInformation]
+    contradictions: list[Contradiction]
+
+    reasoning: str
+    
 
 class EvaluationMetrics(BaseModel):
     passed: bool = Field(

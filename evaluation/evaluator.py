@@ -1,206 +1,247 @@
-from textwrap import dedent
-import os, logging, time
-from typing import Literal
+import asyncio
+import sys, os, logging, time
+from typing import Literal, cast
 from abc import ABC, abstractmethod
 
-from domain.config_error import ConfigError
-from schemas.clinical_summary import ClinicalSummary
-from schemas.evaluation_metrics import EvaluationMetrics
-from evaluation.custom_ollama_eval_model import CustomOllamaEvalModel
-from evaluation.ollama_evaluator import ClinicalSummaryOllamaEvaluator
+from dotenv import load_dotenv
 
+from schemas.clinical_summary import ClinicalSummary
+from schemas.evaluation_metrics import SummaryEvaluation
+
+import ollama
+from openai import OpenAI
 from google import genai
 from google.genai import types as genai_types
-from deepeval.metrics import HallucinationMetric
-from deepeval.test_case import LLMTestCase
 
 logger = logging.getLogger(__name__)
 
-system_instruction = dedent("""\
-    You are an AI Medical Auditor specialized in validating clinical notes. Your sole task is to compare
-    a 'Raw Session Transcript' against an extracted 'Clinical Summary structure' to verify factual accuracy.
+system_prompt = """\
+You are an expert evaluator of clinical documentation.
+Your task is to determine whether a structured clinical summary is a faithful representation of a source therapy transcript.
+Evaluate only factual faithfulness.
 
-    Pay close attention to:
-    1. Exercises: Did the summary list exercises that weren't actually executed?
-    2. Symptoms: Did the summary forget to document physical or cognitive complaints explicit in the transcript?
+Do not judge:
+- writing style
+- grammar
+- completeness beyond what is expected in the summary
+- formatting
 
-    Strictly output your response matching the requested JSON Schema configuration.
-""")
+Determine whether the summary:
+- accurately reflects statements in the transcript
+- contains unsupported claims
+- omits clinically important information
+- contradicts the transcript
+
+Use the transcript as the sole source of truth.
+
+Evaluate according to:
+
+1. Are all statements supported by the transcript?
+2. Are there any contradictions?
+3. Are any clinically important facts omitted?
+4. Produce an overall faithfulness score from 0.0 to 1.0.
+
+Guidelines for score:
+
+1.0 - No factual errors.
+0.9 - Minor wording differences but fully faithful.
+0.7 - Some clinically relevant omissions.
+0.5 - Several important omissions or minor hallucinations.
+0.3 - Major inaccuracies.
+0.0 - Fundamentally unfaithful.
+"""
+
+def get_prompt(source_transcript: str, summary: ClinicalSummary) -> str:
+
+    return f"""\
+Transcript:
+{source_transcript}
+
+Structured summary (JSON):
+{summary.model_dump_json(indent=2)}
+
+Return the result using the required schema.
+"""
 
 class EvaluationEngine(ABC):
     """Abstract base class for evaluation engines."""
 
     @abstractmethod
-    async def evaluate(self, 
-                       summary_data: ClinicalSummary, 
-                       source_transcript: str, 
-                       session_id: str = "") -> EvaluationMetrics:
+    async def evaluate(self,
+                       summary_data: ClinicalSummary,
+                       source_transcript: str) -> SummaryEvaluation:
         pass
 
 class GeminiEvaluator(EvaluationEngine):
-    
+
     def __init__(self, api_key: str, model: str):
-        
+
         if not api_key:
             message = "GEMINI_API_KEY not found from environment."
             logger.error(message)
             raise ValueError(message)
-        
+
         if not model:
-            message = "GEMINI_MODEL not found from environment."
+            message = "GEMINI_MODEL_FOR_EVALUATION not found from environment."
             logger.error(message)
             raise ValueError(message)
 
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
-    async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
-        
-        start_time = time.perf_counter()
+    async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
 
-        logger.info(f"Running evaluation in background for session id {session_id}")
-        
-        logger.info(f"using model={self.model}")
-
-        prompt = f"""
-        Please perform an audit validation for Session ID: {session_id}
-
-        --- ORIGINAL SOURCE TRANSCRIPT ---
-        {source_transcript}
-
-        --- EXTRACTED SUMMARY DATA TO EVALUATE ---
-        Patient Mood: {summary_data.patient_mood}
-        Exercises Logged: {summary_data.exercises_completed}
-        Symptoms Logged: {summary_data.symptoms_mentioned}
-        Next Steps Plan: {summary_data.next_steps}
-        """
+        logger.info(f"Running evaluation of summary_data with {self.model}...")
 
         response = await self.client.aio.models.generate_content(
             model=self.model,
-            contents=prompt,
+            contents=system_prompt,
             config=genai_types.GenerateContentConfig(
-                system_instruction=system_instruction,
+                system_instruction=get_prompt(source_transcript, summary_data),
                 response_mime_type="application/json",
-                response_schema=EvaluationMetrics,
+                response_schema=SummaryEvaluation,
                 temperature=0.0,
             )
         )
 
         raw_parsed = response.parsed
-        if not isinstance(raw_parsed, EvaluationMetrics):
+        if not isinstance(raw_parsed, SummaryEvaluation):
             raise ValueError(f"Unexpected response shape: {type(raw_parsed)}")
-        metrics: EvaluationMetrics = raw_parsed
 
-        elapsed = round(time.perf_counter() - start_time, 2)
-        metrics.latency_seconds = elapsed
+        metrics = raw_parsed
         return metrics
 
+class OpenAIEvaluator(EvaluationEngine):
+
+    def __init__(self, api_key: str, model: str):
+
+        if not api_key:
+            message = "OPENAI_API_KEY not found from environment."
+            logger.error(message)
+            raise ValueError(message)
+
+        if not model:
+            message = "OPENAI_MODEL_FOR_EVALUATION not found from environment."
+            logger.error(message)
+            raise ValueError(message)
+
+        self.model = model
+        self.api_key = api_key
+        self.client = OpenAI(api_key=self.api_key)
+
+    async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
+
+        logger.info(f"Running evaluation of summary_data using {self.model}...")
+
+        response = self.client.responses.parse(
+            model="gpt-5-mini",
+            input=[
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": get_prompt(source_transcript, summary_data) }
+            ],
+            text_format=SummaryEvaluation,
+        )
+
+        clinical_summary = response.output_parsed
+
+        if not isinstance(clinical_summary, SummaryEvaluation):
+            raise ValueError(f"Unexpected response shape: {type(clinical_summary)}")
+
+        return clinical_summary
+
 class LlamaEvaluator(EvaluationEngine):
-    
+
     def __init__(self, model: str):
         if not model:
             message = "LLAMA_MODEL_FOR_EVALUATION not found from environment."
             logger.warning(message)
             raise ValueError(message)
-        
+
         self.model = model
 
-    async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str, session_id: str = "") -> EvaluationMetrics:
-        
-        logger.info(f"Running evaluation in background for session id {session_id}")
-        
-        logger.info(f"using model={self.model}")
+    async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
 
-        test_case = LLMTestCase(
-            input=source_transcript,
-            actual_output=summary_data.model_dump_json(indent=2),
-            context=[source_transcript]
+        logger.info(f"Running evaluation of summary_data using {self.model}...")
+
+        response = ollama.chat(
+            model=self.model,
+            messages=[
+                { 'role': 'system', 'content': system_prompt },
+                { 'role': 'user', 'content': get_prompt(source_transcript, summary_data) }
+            ],
+            format=SummaryEvaluation.model_json_schema()
         )
 
-        logger.debug(f"{test_case.model_dump_json=}")
+        raw_content = response['message']['content']
+        summary_evaluation = SummaryEvaluation.model_validate_json(raw_content)
+        return summary_evaluation
 
-        start_time = time.perf_counter()
-
-        eval_model = CustomOllamaEvalModel(model_name=self.model)
-        metric = HallucinationMetric(threshold=0.5, model=eval_model)
-        
-        await metric.a_measure(test_case)
-
-        logger.info(f"Eval complete. Score: {metric.score}")
-        
-        logger.info(f"Reason for score: {metric.reason}")
-
-        elapsed = round(time.perf_counter() - start_time, 2)
-
-        return EvaluationMetrics(
-            passed=metric.is_successful(),
-            faithfulness_score=metric.score if metric.score is not None else 0.0,
-            latency_seconds=elapsed,
-            unsupported_exercises=[],
-            omitted_symptoms=[],
-        )
-
-def get_evaluator(engine: Literal["gemini", "llama"]) -> EvaluationEngine:
+def get_evaluator(engine: Literal["gemini", "llama", "openai"]) -> EvaluationEngine:
     """Factory function to get the appropriate evaluator based on configuration."""
     if engine == "gemini":
         api_key = os.environ.get("GEMINI_API_KEY") or ""
-        model = os.environ.get("GEMINI_MODEL") or ""
+        model = os.environ.get("GEMINI_MODEL_FOR_EVALUATION") or ""
         return GeminiEvaluator(api_key, model)
-    elif engine == "llama":
-        model = os.environ.get("LLAMA_MODEL") or ""
-        return LlamaEvaluator(model)
-    else:
-        raise ValueError(f"Unknown evaluation engine: {engine}. Choose 'gemini' or 'llama'.")
 
+    elif engine == 'openai':
+        api_key = os.environ.get("OPENAI_API_KEY") or ""
+        model = os.environ.get("OPENAI_MODEL_FOR_EVALUATION") or ""
+        return OpenAIEvaluator(api_key, model)
+
+    elif engine == 'llama':
+        model = os.environ.get("LLAMA_MODEL_FOR_EVALUATION") or ""
+        return LlamaEvaluator(model)
+
+    else:
+        raise ValueError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai' or 'llama'.")
 
 async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str = ""):
     """Unified evaluation function using the configured engine."""
-    
-    # engine_type = os.environ.get("EVAL_ENGINE", "llama").lower()
-    engine_type = 'llama'
-    evaluator = get_evaluator(engine_type)
 
-    logger.debug(f"{engine_type=}")
-    logger.debug(f"{summary_data=}")
-    logger.debug(f"{source_transcript=}")
+    engine_type = os.environ.get('EVAL_ENGINE', 'llama')
 
-    metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
+    evaluator = get_evaluator(cast(Literal['openai', 'llama', 'gemini'], engine_type))
 
-    logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-    logger.info(f"Latency recorded: {metrics.latency_seconds}s")
-    logger.info(f"Factual alignment check: {metrics.passed}")
-    
-    
-    # engine_type = os.environ.get("EVAL_ENGINE", "llama").lower()
+    start_time = time.perf_counter()
 
-    # if engine_type == "custom":
-    #     logger.info("Using custom metrics")
-        
-    #     model = os.environ.get("LLAMA_MODEL_FOR_EVALUATION")
-    #     if model is None:
-    #         message = 'LLAMA_MODEL_FOR_EVALUATION not defined in .env'
-    #         logger.error(message)
-    #         raise ConfigError(message)
-        
-    #     evaluator = ClinicalSummaryOllamaEvaluator(model_name=model or "")
-    #     metrics = await evaluator.evaluate(summary_data=summary_data, source_transcript=source_transcript, session_id=session_id)
+    metrics = await evaluator.evaluate(summary_data, source_transcript)
 
-    #     logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-    #     logger.info(f"exercises score: {metrics.exercises_score}. Reason: {metrics.exercises_reason}")
-    #     logger.info(f"symptoms score: {metrics.symptoms_score}. Reason: {metrics.symptoms_reason}")
-    #     logger.info(f"Latency recorded: {metrics.latency_seconds}s")
-    #     logger.info(f"Factual alignment check: {metrics.passed}")
+    elapsed = round(time.perf_counter() - start_time, 2)
 
-    # else:
+    if len(session_id) > 0:
+        logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
+    else:
+        logger.info(f"[Background] Evaluation succeeded")
 
-    #     evaluator = get_evaluator(engine_type) # pyright: ignore[reportArgumentType]
+    logger.info(f"Evaluation score: {metrics.score}")
+    logger.info(f"Factual alignment check: {metrics.faithful}")
+    logger.info(f"Summary evaluation: {metrics.model_dump_json(indent=2)}")
+    logger.info(f"latency: {elapsed}s")
 
-    #     logger.debug(f"{summary_data=}")
-    #     logger.debug(f"{engine_type=}")
-    #     logger.debug(f"{source_transcript=}")
+async def main():
 
-    #     metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
+    source_transcript="""\
+Patient initially stated, "I didn't do any physical therapy or movement work over the weekend at all."
+However, later in the review, when prompted about specific logs, they recalled and corrected themselves:
+"Oh, wait, I actually spent about 20 minutes doing my balance and gait exercises on Saturday afternoon
+with the home nurse." They reported feeling stable throughout.
+"""
 
-    #     logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-    #     logger.info(f"Latency recorded: {metrics.latency_seconds}s")
-    #     logger.info(f"Factual alignment check: {metrics.passed}")
+    sample_summary = ClinicalSummary(
+        patient_mood="",
+        exercises_completed=["balance", "gait"],
+        symptoms_mentioned=[],
+        next_steps="schedule for 60 mins of strength exercises"
+    )
+
+    await run_evaluation(sample_summary, source_transcript)
+
+if __name__ == "__main__":
+
+    load_dotenv(override=True)
+
+    logging.basicConfig(level=logging.INFO,
+                    stream=sys.stdout,
+                    format='%(levelname)s: %(message)s')
+
+    asyncio.run(main())
