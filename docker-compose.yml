@@ -16,6 +16,7 @@ services:
       - OLLAMA_HOST=http://ollama-service:11434
       - LLAMA_MODEL_FOR_EXTRACTION=${LLAMA_MODEL_FOR_EXTRACTION}
       - LLAMA_MODEL_FOR_EVALUATION=${LLAMA_MODEL_FOR_EVALUATION}
+      - API_KEY=${API_KEY}
       - UV_LINK_MODE=copy
     depends_on:
       - ollama-service
@@ -38,6 +39,7 @@ services:
 
 volumes:
   ollama_storage:
+    name: ollama_storage
   venv-data:
 
 networks:
