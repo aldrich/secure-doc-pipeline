@@ -1,7 +1,6 @@
 import logging
 import uuid
 
-from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 
 from domain.auth import verify_api_key
@@ -18,9 +17,6 @@ async def process_session(payload: SessionRequest, background_tasks: BackgroundT
 
     session_id = uuid.uuid4().hex[:8]
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
-
-    # TODO: do we need this here?
-    load_dotenv(override=True)
 
     try:
         structured_output = run_extraction(payload.transcript)
