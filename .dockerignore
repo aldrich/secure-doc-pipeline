@@ -1,5 +1,56 @@
-.venv
-__pycache__
+# Python bytecode and caches
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Version Control
 .git
-.pytest_cache
+.gitignore
+
+# Docker files (no need to copy the instructions into the container)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Common Dependency Directories
+node_modules/
+jspm_packages/
+.npm
+.yarn
+venv/
+.venv/
+ENV/
+bin/
+obj/
+
+# Build outputs
+dist/
+build/
+out/
+target/
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Secrets & Logs
+*.log
+.env
+.env.*
+*.local
+credentials.json
+*.pem
+*.key
