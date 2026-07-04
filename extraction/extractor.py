@@ -55,7 +55,7 @@ class OpenAIExtractor(ExtractionEngine):
         client = OpenAI(api_key=openai_api_key)
 
         response = client.responses.parse(
-            model='gpt-4.1-nano',
+            model=self.model,
             input=[
                 { "role": "system", "content": system_prompt },
                 { "role": "user", "content": f"<transcript>{source_transcript}</transcript>" }
@@ -89,7 +89,7 @@ class GeminiExtractor(ExtractionEngine):
         client = genai.Client(api_key=self.api_key)
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=self.model,
             contents=f"""<transcript>
 {source_transcript}
 </transcript>

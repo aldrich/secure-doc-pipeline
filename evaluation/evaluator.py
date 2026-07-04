@@ -140,7 +140,7 @@ class OpenAIEvaluator(EvaluationEngine):
         logger.info(f"Running evaluation of summary_data using {self.model}...")
 
         response = self.client.responses.parse(
-            model="gpt-5-mini",
+            model=self.model,
             input=[
                 { "role": "system", "content": system_prompt },
                 { "role": "user", "content": get_prompt(source_transcript, summary_data) }
