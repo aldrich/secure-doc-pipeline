@@ -14,4 +14,5 @@ logging.basicConfig(level=logging.INFO,
 app = FastAPI(title="Secure Clinical Documentation Pipeline")
 
 app.include_router(auth_app.router, prefix='/api/v1')
+
 app.include_router(transformers_app.router, prefix='/api/v1')
