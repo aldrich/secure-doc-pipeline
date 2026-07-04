@@ -1,0 +1,111 @@
+# ==========================================
+
+# 1. Package Managers & Dependencies
+
+# ==========================================
+
+node_modules/
+\*\*/node_modules/
+.venv/
+env/
+venv/
+ENV/
+vendor/
+.pnpm-store/
+
+# ==========================================
+
+# 2. Build Outputs, Caches, & Compiled Code
+
+# ==========================================
+
+dist/
+build/
+out/
+.next/
+.nuxt/
+.docusaurus/
+.cache/
+.turbo/
+_.min.js
+_.min.css
+_.map
+_.tsbuildinfo
+
+# ==========================================
+
+# 3. Heavy Lockfiles (Optional but recommended for speed)
+
+# ==========================================
+
+# If your repo is massive, parsing lockfiles blows up context windows.
+
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+
+# ==========================================
+
+# 4. Strict Security & Secrets (Crucial)
+
+# ==========================================
+
+.env
+.env._
+!.env.example
+_.pem
+_.key
+_.p1x
+\*.pfx
+secrets/
+credentials/
+serviceAccountKey.json
+
+# ==========================================
+
+# 5. Media, Assets, & Binary Files
+
+# ==========================================
+
+_.png
+_.jpg
+_.jpeg
+_.gif
+_.svg
+_.ico
+_.mp4
+_.mov
+_.pdf
+_.zip
+_.tar.gz
+_.gz
+
+# ==========================================
+
+# 6. Large Data & Databases
+
+# ==========================================
+
+_.csv
+_.xlsx
+_.sqlite
+_.sqlite3
+_.db
+_.parquet
+\*.jsonl
+
+# ==========================================
+
+# 7. IDE, System, & Test Artifacts
+
+# ==========================================
+
+.DS_Store
+.idea/
+.vscode/
+.history/
+coverage/
+.nyc_output/
+.pytest_cache/
+.eslintcache
