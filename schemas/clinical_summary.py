@@ -1,11 +1,9 @@
 import logging
-import os
 from typing import List
 
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-llama_model_for_extraction = os.environ.get("LLAMA_MODEL_FOR_EXTRACTION")
 
 class ClinicalSummary(BaseModel):
     

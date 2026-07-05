@@ -14,16 +14,10 @@ The application exposes versioned endpoints under `/api/v1`.
 import sys
 import logging
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from api.routes.transformers import app as transformers_app
 from domain.auth import app as auth_app
-
-
-# Load environment variables before any application components
-# attempt to access configuration values.
-load_dotenv()
 
 
 # Configure the application's root logger to emit INFO-level

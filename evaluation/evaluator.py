@@ -3,8 +3,7 @@ import sys, os, logging, time
 from typing import Literal, cast
 from abc import ABC, abstractmethod
 
-from dotenv import load_dotenv
-
+from domain.settings import settings
 from schemas.clinical_summary import ClinicalSummary
 from schemas.evaluation_metrics import SummaryEvaluation
 
@@ -184,18 +183,19 @@ class LlamaEvaluator(EvaluationEngine):
 
 def get_evaluator(engine: Literal["gemini", "llama", "openai"]) -> EvaluationEngine:
     """Factory function to get the appropriate evaluator based on configuration."""
-    if engine == "gemini":
-        api_key = os.environ.get("GEMINI_API_KEY") or ""
-        model = os.environ.get("GEMINI_MODEL_FOR_EVALUATION") or ""
+    if engine == "gemini":        
+        api_key = settings.gemini_api_key
+        model = settings.gemini_model_for_evaluation
         return GeminiEvaluator(api_key, model)
 
     elif engine == 'openai':
-        api_key = os.environ.get("OPENAI_API_KEY") or ""
-        model = os.environ.get("OPENAI_MODEL_FOR_EVALUATION") or ""
+        api_key = settings.openai_api_key
+        model = settings.openai_model_for_evaluation
+        
         return OpenAIEvaluator(api_key, model)
 
     elif engine == 'llama':
-        model = os.environ.get("LLAMA_MODEL_FOR_EVALUATION") or ""
+        model = settings.llama_model_for_evaluation
         return LlamaEvaluator(model)
 
     else:
@@ -204,7 +204,7 @@ def get_evaluator(engine: Literal["gemini", "llama", "openai"]) -> EvaluationEng
 async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str = ""):
     """Unified evaluation function using the configured engine."""
 
-    engine_type = os.environ.get('EVAL_ENGINE', 'llama')
+    engine_type = settings.eval_engine
 
     evaluator = get_evaluator(cast(Literal['openai', 'llama', 'gemini'], engine_type))
 
@@ -243,8 +243,6 @@ with the home nurse." They reported feeling stable throughout.
     await run_evaluation(sample_summary, source_transcript)
 
 if __name__ == "__main__":
-
-    load_dotenv(override=True)
 
     logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,

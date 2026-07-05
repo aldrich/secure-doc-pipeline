@@ -1,14 +1,14 @@
-import logging, os, sys, time
+import logging, sys, time
 
 from abc import ABC, abstractmethod
 from typing import Literal, cast
-from dotenv import load_dotenv
 
 import ollama
 from google import genai
 from google.genai import types as genai_types
 from openai import OpenAI
 
+from domain.settings import settings
 from domain.config_error import ConfigError
 from schemas.clinical_summary import ClinicalSummary
 
@@ -46,7 +46,7 @@ class OpenAIExtractor(ExtractionEngine):
 
         logger.info(f"Running extraction of source_transcript using {self.model}...")
 
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        openai_api_key = settings.openai_api_key
         if openai_api_key is None:
             message = 'OPENAI_API_KEY not defined in .env'
             logger.error(message)
@@ -136,17 +136,17 @@ class LlamaExtractor(ExtractionEngine):
 def get_extractor(engine: Literal["gemini", "llama", "openai"]) -> ExtractionEngine:
     """Factory function to get the appropriate evaluator based on configuration."""
     if engine == "gemini":
-        api_key = os.environ.get("GEMINI_API_KEY") or ""
-        model = os.environ.get("GEMINI_MODEL_FOR_EXTRACTION") or ""
+        api_key = settings.gemini_api_key
+        model = settings.gemini_model_for_extraction
         return GeminiExtractor(api_key, model)
 
     elif engine == 'openai':
-        api_key = os.environ.get("OPENAI_API_KEY") or ""
-        model = os.environ.get("OPENAI_MODEL_FOR_EXTRACTION") or ""
+        api_key = settings.openai_api_key
+        model = settings.openai_model_for_extraction
         return OpenAIExtractor(api_key, model)
 
     elif engine == 'llama':
-        model = os.environ.get("LLAMA_MODEL_FOR_EXTRACTION") or ""
+        model = settings.llama_model_for_extraction
         return LlamaExtractor(model)
 
     else:
@@ -156,7 +156,8 @@ def get_extractor(engine: Literal["gemini", "llama", "openai"]) -> ExtractionEng
 def run_extraction(source_transcript: str) -> ClinicalSummary:
     """Unified extractor function using the configured engine."""
 
-    engine_type = os.environ.get('EXTRACT_ENGINE', 'llama')
+    engine_type = settings.extract_engine
+    
     extractor = get_extractor(cast(Literal['openai', 'llama', 'gemini'], engine_type))
 
     start_time = time.perf_counter()
@@ -182,8 +183,6 @@ with the home nurse." They reported feeling stable throughout.
     run_extraction(source_transcript)
 
 if __name__ == "__main__":
-
-    load_dotenv(override=True)
 
     logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
