@@ -101,9 +101,9 @@ class GeminiEvaluator(EvaluationEngine):
 
         response = await self.client.aio.models.generate_content(
             model=self.model,
-            contents=system_prompt,
+            contents=get_prompt(source_transcript, summary_data),
             config=genai_types.GenerateContentConfig(
-                system_instruction=get_prompt(source_transcript, summary_data),
+                system_instruction=system_prompt,
                 response_mime_type="application/json",
                 response_schema=SummaryEvaluation,
                 temperature=0.0,
