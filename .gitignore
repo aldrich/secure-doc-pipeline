@@ -13,3 +13,6 @@ wheels/
 .deepeval/
 
 .env
+
+# AI generated files
+.kilo/
