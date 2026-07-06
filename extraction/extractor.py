@@ -1,3 +1,4 @@
+import asyncio
 import logging, sys, time
 
 from abc import ABC, abstractmethod
@@ -6,7 +7,7 @@ from typing import Literal, cast
 import ollama
 from google import genai
 from google.genai import types as genai_types
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from domain.settings import settings
 from domain.config_error import ConfigError
@@ -24,7 +25,7 @@ class ExtractionEngine(ABC):
     """Abstract base class for extraction engines."""
 
     @abstractmethod
-    def extract(self, source_transcript: str) -> ClinicalSummary:
+    async def extract(self, source_transcript: str) -> ClinicalSummary:
         pass
 
 class OpenAIExtractor(ExtractionEngine):
@@ -42,7 +43,7 @@ class OpenAIExtractor(ExtractionEngine):
 
         self.model = model
 
-    def extract(self, source_transcript: str) -> ClinicalSummary:
+    async def extract(self, source_transcript: str) -> ClinicalSummary:
 
         logger.info(f"Running extraction of source_transcript using {self.model}...")
 
@@ -52,9 +53,9 @@ class OpenAIExtractor(ExtractionEngine):
             logger.error(message)
             raise ConfigError(message)
 
-        client = OpenAI(api_key=openai_api_key)
+        client = AsyncOpenAI(api_key=openai_api_key)
 
-        response = client.responses.parse(
+        response = await client.responses.parse(
             model=self.model,
             input=[
                 { "role": "system", "content": system_prompt },
@@ -63,8 +64,10 @@ class OpenAIExtractor(ExtractionEngine):
             text_format=ClinicalSummary
         )
 
-        clean_data = ClinicalSummary.model_validate_json(response.output_text)
-        return clean_data
+        if not isinstance(response.output_parsed, ClinicalSummary):
+            raise ValueError(f"Unexpected response shape: {type(response.output_parsed)}")
+
+        return response.output_parsed
 
 class GeminiExtractor(ExtractionEngine):
 
@@ -82,7 +85,7 @@ class GeminiExtractor(ExtractionEngine):
         self.model = model
         self.api_key = api_key
 
-    def extract(self, source_transcript: str) -> ClinicalSummary:
+    async def extract(self, source_transcript: str) -> ClinicalSummary:
 
         logger.info(f"Running extraction of source_transcript using {self.model}...")
 
@@ -115,18 +118,19 @@ class LlamaExtractor(ExtractionEngine):
 
         self.model = model
 
-    def extract(self, source_transcript: str) -> ClinicalSummary:
+    async def extract(self, source_transcript: str) -> ClinicalSummary:
 
         logger.info(f"Running extraction of source_transcript using {self.model}...")
 
-        response = ollama.chat(
-            model=self.model,
-            messages=[
-                { 'role': 'system', 'content': system_prompt },
-                { 'role': 'user', 'content': f"<transcript>{source_transcript}</transcript>" }
-            ],
-            format=ClinicalSummary.model_json_schema()
-        )
+        async with ollama.AsyncClient() as client:
+            response = await client.chat(
+                model=self.model,
+                messages=[
+                    { 'role': 'system', 'content': system_prompt },
+                    { 'role': 'user', 'content': f"<transcript>{source_transcript}</transcript>" }
+                ],
+                format=ClinicalSummary.model_json_schema()
+            )
 
         raw_content = response['message']['content']
         summary_evaluation = ClinicalSummary.model_validate_json(raw_content)
@@ -153,7 +157,7 @@ def get_extractor(engine: Literal["gemini", "llama", "openai"]) -> ExtractionEng
         raise ConfigError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai' or 'llama'.")
 
 
-def run_extraction(source_transcript: str) -> ClinicalSummary:
+async def run_extraction(source_transcript: str) -> ClinicalSummary:
     """Unified extractor function using the configured engine."""
 
     engine_type = settings.extract_engine
@@ -162,7 +166,7 @@ def run_extraction(source_transcript: str) -> ClinicalSummary:
 
     start_time = time.perf_counter()
 
-    clinical_summary = extractor.extract(source_transcript)
+    clinical_summary = await extractor.extract(source_transcript)
 
     elapsed = round(time.perf_counter() - start_time, 2)
 
@@ -180,7 +184,7 @@ However, later in the review, when prompted about specific logs, they recalled a
 with the home nurse." They reported feeling stable throughout.
 """
 
-    run_extraction(source_transcript)
+    asyncio.run(run_extraction(source_transcript))
 
 if __name__ == "__main__":
 

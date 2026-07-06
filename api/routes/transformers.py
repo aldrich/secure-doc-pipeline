@@ -51,7 +51,7 @@ async def process_session(
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
 
     try:
-        structured_output = run_extraction(payload.transcript)
+        structured_output = await run_extraction(payload.transcript)
         
         background_tasks.add_task(
             run_evaluation,

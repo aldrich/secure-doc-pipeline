@@ -8,7 +8,7 @@ from schemas.clinical_summary import ClinicalSummary
 from schemas.evaluation_metrics import SummaryEvaluation
 
 import ollama
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from google import genai
 from google.genai import types as genai_types
 
@@ -132,13 +132,13 @@ class OpenAIEvaluator(EvaluationEngine):
 
         self.model = model
         self.api_key = api_key
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = AsyncOpenAI(api_key=self.api_key)
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
 
         logger.info(f"Running evaluation of summary_data using {self.model}...")
 
-        response = self.client.responses.parse(
+        response = await self.client.responses.parse(
             model=self.model,
             input=[
                 { "role": "system", "content": system_prompt },
@@ -168,14 +168,15 @@ class LlamaEvaluator(EvaluationEngine):
 
         logger.info(f"Running evaluation of summary_data using {self.model}...")
 
-        response = ollama.chat(
-            model=self.model,
-            messages=[
-                { 'role': 'system', 'content': system_prompt },
-                { 'role': 'user', 'content': get_prompt(source_transcript, summary_data) }
-            ],
-            format=SummaryEvaluation.model_json_schema()
-        )
+        async with ollama.AsyncClient() as client:
+            response = await client.chat(
+                model=self.model,
+                messages=[
+                    { 'role': 'system', 'content': system_prompt },
+                    { 'role': 'user', 'content': get_prompt(source_transcript, summary_data) }
+                ],
+                format=SummaryEvaluation.model_json_schema()
+            )
 
         raw_content = response['message']['content']
         summary_evaluation = SummaryEvaluation.model_validate_json(raw_content)
