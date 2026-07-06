@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     openai_model_for_extraction: str = "gpt-4.1-nano"
     openai_model_for_evaluation: str = "gpt-4.1-mini"
     
+    deepseek_api_key: str = ""
+    deepseek_model_for_extraction: str = "deepseek-v4-flash"
+    deepseek_model_for_evaluation: str = "deepseek-v4-pro"
+    deepseek_base_url: str = "https://api.deepseek.com"
+
     ollama_host: str = "http://localhost:11434"
     llama_model_for_extraction: str = "llama3.2:3b"
     llama_model_for_evaluation: str = "llama3.1:8b"

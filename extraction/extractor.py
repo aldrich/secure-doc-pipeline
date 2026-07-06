@@ -136,8 +136,52 @@ class LlamaExtractor(ExtractionEngine):
         summary_evaluation = ClinicalSummary.model_validate_json(raw_content)
         return summary_evaluation
 
+class DeepSeekExtractor(ExtractionEngine):
 
-def get_extractor(engine: Literal["gemini", "llama", "openai"]) -> ExtractionEngine:
+    def __init__(self, api_key: str, model: str, base_url: str):
+        if not api_key:
+            message = "DEEPSEEK_API_KEY not found from environment."
+            logger.warning(message)
+            raise ConfigError(message)
+
+        if not model:
+            message = "DEEPSEEK_MODEL_FOR_EXTRACTION not found from environment."
+            logger.warning(message)
+            raise ConfigError(message)
+
+        self.model = model
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+
+    async def extract(self, source_transcript: str) -> ClinicalSummary:
+        logger.info(f"Running extraction of source_transcript using {self.model}...")
+
+        # this is a DeepSeek-specific way to get the response in the correct format
+        # source: https://api-docs.deepseek.com/guides/json_mode/
+        response_shape_spec = f'respond in the following JSON format: {ClinicalSummary.model_json_schema()}'
+
+        modified_system_prompt = "\n".join([system_prompt, response_shape_spec])
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                { "role": "system", "content": modified_system_prompt },
+                { "role": "user", "content": f"<transcript>{source_transcript}</transcript>" }
+            ],
+            response_format={ "type": "json_object" },
+            temperature=0,
+        )
+
+        raw_content = response.choices[0].message.content
+        if raw_content is None:
+            raise ValueError("Empty response from DeepSeek")
+        
+        logger.info(f"raw_content: {raw_content}")
+
+        clinical_summary = ClinicalSummary.model_validate_json(raw_content)
+        return clinical_summary
+
+
+def get_extractor(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> ExtractionEngine:
     """Factory function to get the appropriate evaluator based on configuration."""
     if engine == "gemini":
         api_key = settings.gemini_api_key
@@ -153,8 +197,14 @@ def get_extractor(engine: Literal["gemini", "llama", "openai"]) -> ExtractionEng
         model = settings.llama_model_for_extraction
         return LlamaExtractor(model)
 
+    elif engine == 'deepseek':
+        api_key = settings.deepseek_api_key
+        model = settings.deepseek_model_for_extraction
+        base_url = settings.deepseek_base_url
+        return DeepSeekExtractor(api_key, model, base_url)
+
     else:
-        raise ConfigError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai' or 'llama'.")
+        raise ConfigError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
 
 
 async def run_extraction(source_transcript: str) -> ClinicalSummary:
@@ -162,7 +212,7 @@ async def run_extraction(source_transcript: str) -> ClinicalSummary:
 
     engine_type = settings.extract_engine
     
-    extractor = get_extractor(cast(Literal['openai', 'llama', 'gemini'], engine_type))
+    extractor = get_extractor(cast(Literal['openai', 'llama', 'gemini', 'deepseek'], engine_type))
 
     start_time = time.perf_counter()
 

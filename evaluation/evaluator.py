@@ -182,7 +182,48 @@ class LlamaEvaluator(EvaluationEngine):
         summary_evaluation = SummaryEvaluation.model_validate_json(raw_content)
         return summary_evaluation
 
-def get_evaluator(engine: Literal["gemini", "llama", "openai"]) -> EvaluationEngine:
+class DeepSeekEvaluator(EvaluationEngine):
+
+    def __init__(self, api_key: str, model: str, base_url: str):
+        if not api_key:
+            message = "DEEPSEEK_API_KEY not found from environment."
+            logger.error(message)
+            raise ValueError(message)
+
+        if not model:
+            message = "DEEPSEEK_MODEL_FOR_EVALUATION not found from environment."
+            logger.error(message)
+            raise ValueError(message)
+
+        self.model = model
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+
+    async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
+        logger.info(f"Running evaluation of summary_data using {self.model}...")
+
+        # this is a DeepSeek-specific way to get the response in the correct format
+        # source: https://api-docs.deepseek.com/guides/json_mode/
+        response_shape_spec = f'respond in the following JSON format: {SummaryEvaluation.model_json_schema()}'
+
+        modified_system_prompt = "\n".join([system_prompt, response_shape_spec])
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                { "role": "system", "content": modified_system_prompt },
+                { "role": "user", "content": get_prompt(source_transcript, summary_data) }
+            ],
+            response_format={ "type": "json_object" },
+            temperature=0,
+        )
+
+        raw_content = response.choices[0].message.content
+        if raw_content is None:
+            raise ValueError("Empty response from DeepSeek")
+
+        summary_evaluation = SummaryEvaluation.model_validate_json(raw_content)
+        return summary_evaluation
+
+def get_evaluator(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> EvaluationEngine:
     """Factory function to get the appropriate evaluator based on configuration."""
     if engine == "gemini":        
         api_key = settings.gemini_api_key
@@ -199,15 +240,21 @@ def get_evaluator(engine: Literal["gemini", "llama", "openai"]) -> EvaluationEng
         model = settings.llama_model_for_evaluation
         return LlamaEvaluator(model)
 
+    elif engine == 'deepseek':
+        api_key = settings.deepseek_api_key
+        model = settings.deepseek_model_for_evaluation
+        base_url = settings.deepseek_base_url
+        return DeepSeekEvaluator(api_key, model, base_url)
+
     else:
-        raise ValueError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai' or 'llama'.")
+        raise ValueError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
 
 async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str = ""):
     """Unified evaluation function using the configured engine."""
 
     engine_type = settings.eval_engine
 
-    evaluator = get_evaluator(cast(Literal['openai', 'llama', 'gemini'], engine_type))
+    evaluator = get_evaluator(cast(Literal['openai', 'llama', 'gemini', 'deepseek'], engine_type))
 
     start_time = time.perf_counter()
 
