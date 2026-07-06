@@ -10,7 +10,7 @@ from google.genai import types as genai_types
 from openai import AsyncOpenAI, OpenAI
 
 from domain.settings import settings
-from domain.config_error import ConfigError
+from domain.error import ConfigurationError, ExtractionError
 from schemas.clinical_summary import ClinicalSummary
 
 logger = logging.getLogger(__name__)
@@ -34,12 +34,12 @@ class OpenAIExtractor(ExtractionEngine):
         if not model:
             message = "OPENAI_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         if not api_key:
             message = "OPENAI_API_KEY not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         self.model = model
 
@@ -51,7 +51,7 @@ class OpenAIExtractor(ExtractionEngine):
         if openai_api_key is None:
             message = 'OPENAI_API_KEY not defined in .env'
             logger.error(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         client = AsyncOpenAI(api_key=openai_api_key)
 
@@ -65,7 +65,7 @@ class OpenAIExtractor(ExtractionEngine):
         )
 
         if not isinstance(response.output_parsed, ClinicalSummary):
-            raise ValueError(f"Unexpected response shape: {type(response.output_parsed)}")
+            raise ExtractionError(f"Unexpected response shape: {type(response.output_parsed)}")
 
         return response.output_parsed
 
@@ -75,12 +75,12 @@ class GeminiExtractor(ExtractionEngine):
         if not model:
             message = "GEMINI_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         if not api_key:
             message = "GEMINI_API_KEY not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         self.model = model
         self.api_key = api_key
@@ -114,7 +114,7 @@ class LlamaExtractor(ExtractionEngine):
         if not model:
             message = "LLAMA_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         self.model = model
 
@@ -142,12 +142,12 @@ class DeepSeekExtractor(ExtractionEngine):
         if not api_key:
             message = "DEEPSEEK_API_KEY not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         if not model:
             message = "DEEPSEEK_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
-            raise ConfigError(message)
+            raise ConfigurationError(message)
 
         self.model = model
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -173,7 +173,7 @@ class DeepSeekExtractor(ExtractionEngine):
 
         raw_content = response.choices[0].message.content
         if raw_content is None:
-            raise ValueError("Empty response from DeepSeek")
+            raise ExtractionError("Empty response from DeepSeek")
         
         logger.info(f"raw_content: {raw_content}")
 
@@ -204,7 +204,7 @@ def get_extractor(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> E
         return DeepSeekExtractor(api_key, model, base_url)
 
     else:
-        raise ConfigError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
+        raise ConfigurationError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
 
 
 async def run_extraction(source_transcript: str) -> ClinicalSummary:

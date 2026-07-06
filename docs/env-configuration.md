@@ -23,7 +23,7 @@ This document describes every variable in `.env.example`, its purpose, valid val
 | **Possible values** | `gemini`, `llama`, `openai` |
 | **Default** | `llama` |
 | **Required?** | No — default is used if absent. |
-| **Where validated** | `extraction/extractor.py:156` — unknown values raise `ConfigError`. |
+| **Where validated** | `extraction/extractor.py:156` — unknown values raise `ConfigurationError`. |
 | **Docker** | Passed as `- EXTRACT_ENGINE=${EXTRACT_ENGINE}` in `docker-compose.yml:9`. |
 
 ---

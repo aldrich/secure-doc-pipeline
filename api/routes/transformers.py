@@ -12,6 +12,7 @@ import uuid
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 
 from domain.auth import verify_api_key
+from domain.error import EvaluationError
 from evaluation.evaluator import run_evaluation
 from extraction.extractor import run_extraction
 from schemas.session_request import SessionRequest
@@ -42,30 +43,21 @@ async def process_session(
     Returns:
         dict: A dictionary containing the status, a unique session_id, 
             and the extracted data.
-
-    Raises:
-        HTTPException: If the extraction pipeline fails, a 500 status code 
-            is returned with the error details.
     """
     session_id = uuid.uuid4().hex[:8]
     logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
 
-    try:
-        structured_output = await run_extraction(payload.transcript)
-        
-        background_tasks.add_task(
-            run_evaluation,
-            structured_output,
-            payload.transcript,
-            session_id,            
-        )
-        
-        return {
-            "status": "processing_verification",
-            "session_id": session_id,
-            "data": structured_output
-        }
-
-    except Exception as e:
-        logger.error(f"Pipeline processing failed for session {session_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Pipeline processing failed: {str(e)}")
+    structured_output = await run_extraction(payload.transcript)
+    
+    background_tasks.add_task(
+        run_evaluation,
+        structured_output,
+        payload.transcript,
+        session_id,            
+    )
+    
+    return {
+        "status": "processing_verification",
+        "session_id": session_id,
+        "data": structured_output
+    }

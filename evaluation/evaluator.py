@@ -3,12 +3,13 @@ import sys, os, logging, time
 from typing import Literal, cast
 from abc import ABC, abstractmethod
 
+from domain.error import ConfigurationError, EvaluationError
 from domain.settings import settings
 from schemas.clinical_summary import ClinicalSummary
 from schemas.evaluation_metrics import SummaryEvaluation
 
 import ollama
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI
 from google import genai
 from google.genai import types as genai_types
 
@@ -84,12 +85,12 @@ class GeminiEvaluator(EvaluationEngine):
         if not api_key:
             message = "GEMINI_API_KEY not found from environment."
             logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         if not model:
             message = "GEMINI_MODEL_FOR_EVALUATION not found from environment."
             logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         self.client = genai.Client(api_key=api_key)
         self.model = model
@@ -111,7 +112,7 @@ class GeminiEvaluator(EvaluationEngine):
 
         raw_parsed = response.parsed
         if not isinstance(raw_parsed, SummaryEvaluation):
-            raise ValueError(f"Unexpected response shape: {type(raw_parsed)}")
+            raise EvaluationError(f"Unexpected response shape: {type(raw_parsed)}")
 
         metrics = raw_parsed
         return metrics
@@ -123,12 +124,12 @@ class OpenAIEvaluator(EvaluationEngine):
         if not api_key:
             message = "OPENAI_API_KEY not found from environment."
             logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         if not model:
             message = "OPENAI_MODEL_FOR_EVALUATION not found from environment."
             logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         self.model = model
         self.api_key = api_key
@@ -150,7 +151,7 @@ class OpenAIEvaluator(EvaluationEngine):
         clinical_summary = response.output_parsed
 
         if not isinstance(clinical_summary, SummaryEvaluation):
-            raise ValueError(f"Unexpected response shape: {type(clinical_summary)}")
+            raise EvaluationError(f"Unexpected response shape: {type(clinical_summary)}")
 
         return clinical_summary
 
@@ -160,7 +161,7 @@ class LlamaEvaluator(EvaluationEngine):
         if not model:
             message = "LLAMA_MODEL_FOR_EVALUATION not found from environment."
             logger.warning(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         self.model = model
 
@@ -188,12 +189,12 @@ class DeepSeekEvaluator(EvaluationEngine):
         if not api_key:
             message = "DEEPSEEK_API_KEY not found from environment."
             logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         if not model:
             message = "DEEPSEEK_MODEL_FOR_EVALUATION not found from environment."
             logger.error(message)
-            raise ValueError(message)
+            raise ConfigurationError(message)
 
         self.model = model
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -206,6 +207,7 @@ class DeepSeekEvaluator(EvaluationEngine):
         response_shape_spec = f'respond in the following JSON format: {SummaryEvaluation.model_json_schema()}'
 
         modified_system_prompt = "\n".join([system_prompt, response_shape_spec])
+        
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -218,7 +220,7 @@ class DeepSeekEvaluator(EvaluationEngine):
 
         raw_content = response.choices[0].message.content
         if raw_content is None:
-            raise ValueError("Empty response from DeepSeek")
+            raise EvaluationError("Empty response from DeepSeek")
 
         summary_evaluation = SummaryEvaluation.model_validate_json(raw_content)
         return summary_evaluation
@@ -247,7 +249,7 @@ def get_evaluator(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> E
         return DeepSeekEvaluator(api_key, model, base_url)
 
     else:
-        raise ValueError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
+        raise ConfigurationError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
 
 async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str = ""):
     """Unified evaluation function using the configured engine."""

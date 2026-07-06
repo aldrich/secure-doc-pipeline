@@ -16,9 +16,11 @@ import logging
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from domain.auth import app as auth_app
 from api.routes.transformers import app as transformers_app
+from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
 from domain.settings import settings
 
 # Configure the application's root logger to emit INFO-level
@@ -49,7 +51,7 @@ async def lifespan(app: FastAPI):
         if not value
     ]
     if missing:
-        raise RuntimeError(
+        raise ConfigurationError(
             "Required settings are missing or empty: "
             + ", ".join(missing)
         )
@@ -64,3 +66,46 @@ app.include_router(auth_app.router, prefix="/api/v1")
 
 # Register document transformation endpoints.
 app.include_router(transformers_app.router, prefix="/api/v1")
+
+
+@app.exception_handler(ConfigurationError)
+async def config_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+    )
+    
+@app.exception_handler(AuthenticationError)
+async def auth_handler(request, exc):
+    return JSONResponse(
+        status_code=401,
+        content={"detail": str(exc)},
+    )
+    
+@app.exception_handler(ProviderError)
+async def provider_handler(request, exc):
+    return JSONResponse(
+        status_code=502,
+        content={"detail": str(exc)},
+    )
+    
+@app.exception_handler(ExtractionError)
+async def extraction_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": str(exc)},
+    )
+    
+@app.exception_handler(EvaluationError)
+async def evaluation_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": str(exc)},
+    )
+
+@app.exception_handler(Exception)
+async def generic_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+    )
