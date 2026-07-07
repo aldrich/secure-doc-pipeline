@@ -3,6 +3,7 @@ import logging, sys, time
 
 from abc import ABC, abstractmethod
 from typing import Literal, cast
+import uuid
 
 import ollama
 from google import genai
@@ -11,6 +12,7 @@ from openai import AsyncOpenAI, OpenAI
 
 from domain.settings import settings
 from domain.error import ConfigurationError, ExtractionError
+from domain.structured_logger import StructuredFormatter
 from schemas.clinical_summary import ClinicalSummary
 
 logger = logging.getLogger(__name__)
@@ -27,8 +29,35 @@ class ExtractionEngine(ABC):
     @abstractmethod
     async def extract(self, source_transcript: str) -> ClinicalSummary:
         pass
+    
+    @property
+    @abstractmethod
+    def model(self) -> str:
+        pass
+    
+    @property
+    @abstractmethod
+    def session_id(self) -> str:
+        pass
+
+    @session_id.setter
+    @abstractmethod
+    def session_id(self, value: str) -> None:
+        pass
 
 class OpenAIExtractor(ExtractionEngine):
+
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
 
     def __init__(self, api_key: str, model: str):
         if not model:
@@ -41,11 +70,11 @@ class OpenAIExtractor(ExtractionEngine):
             logger.warning(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
 
     async def extract(self, source_transcript: str) -> ClinicalSummary:
 
-        logger.info(f"Running extraction of source_transcript using {self.model}...")
+        logger.info("extraction_started", extra={"engine": "openai", "model": self.model, "session_id": self.session_id})
 
         openai_api_key = settings.openai_api_key
         if openai_api_key is None:
@@ -71,6 +100,18 @@ class OpenAIExtractor(ExtractionEngine):
 
 class GeminiExtractor(ExtractionEngine):
 
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
+    
     def __init__(self, api_key: str, model: str):
         if not model:
             message = "GEMINI_MODEL_FOR_EXTRACTION not found from environment."
@@ -82,12 +123,12 @@ class GeminiExtractor(ExtractionEngine):
             logger.warning(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
         self.api_key = api_key
 
     async def extract(self, source_transcript: str) -> ClinicalSummary:
 
-        logger.info(f"Running extraction of source_transcript using {self.model}...")
+        logger.info("extraction_started", extra={"engine": "gemini", "model": self.model, "session_id": self.session_id})
 
         client = genai.Client(api_key=self.api_key)
 
@@ -110,17 +151,29 @@ class GeminiExtractor(ExtractionEngine):
 
 class LlamaExtractor(ExtractionEngine):
 
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
+    
     def __init__(self, model: str):
         if not model:
             message = "LLAMA_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
 
     async def extract(self, source_transcript: str) -> ClinicalSummary:
 
-        logger.info(f"Running extraction of source_transcript using {self.model}...")
+        logger.info("extraction_started", extra={"engine": "llama", "model": self.model, "session_id": self.session_id})
 
         async with ollama.AsyncClient() as client:
             response = await client.chat(
@@ -138,6 +191,18 @@ class LlamaExtractor(ExtractionEngine):
 
 class DeepSeekExtractor(ExtractionEngine):
 
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
+    
     def __init__(self, api_key: str, model: str, base_url: str):
         if not api_key:
             message = "DEEPSEEK_API_KEY not found from environment."
@@ -149,13 +214,11 @@ class DeepSeekExtractor(ExtractionEngine):
             logger.warning(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
     async def extract(self, source_transcript: str) -> ClinicalSummary:
-        logger.info(f"Running extraction of source_transcript using {self.model}...")
-
-        # this is a DeepSeek-specific way to get the response in the correct format
+        logger.info("extraction_started", extra={"engine": "deepseek", "model": self.model, "session_id": self.session_id})
         # source: https://api-docs.deepseek.com/guides/json_mode/
         response_shape_spec = f'respond in the following JSON format: {ClinicalSummary.model_json_schema()}'
 
@@ -175,7 +238,7 @@ class DeepSeekExtractor(ExtractionEngine):
         if raw_content is None:
             raise ExtractionError("Empty response from DeepSeek")
         
-        logger.info(f"raw_content: {raw_content}")
+        logger.info("extraction_raw_response", extra={"engine": "deepseek", "model": self.model, "session_id": self.session_id, "raw_content_length": len(raw_content)})
 
         clinical_summary = ClinicalSummary.model_validate_json(raw_content)
         return clinical_summary
@@ -207,7 +270,7 @@ def get_extractor(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> E
         raise ConfigurationError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
 
 
-async def run_extraction(source_transcript: str) -> ClinicalSummary:
+async def run_extraction(source_transcript: str, session_id: str) -> ClinicalSummary:
     """Unified extractor function using the configured engine."""
 
     engine_type = settings.extract_engine
@@ -216,13 +279,19 @@ async def run_extraction(source_transcript: str) -> ClinicalSummary:
 
     start_time = time.perf_counter()
 
+    extractor.session_id = session_id
+    
     clinical_summary = await extractor.extract(source_transcript)
 
     elapsed = round(time.perf_counter() - start_time, 2)
 
-    logger.info(f"clinical_summary: {clinical_summary.model_dump_json(indent=2)}")
-
-    logger.info(f"latency: {elapsed}s")
+    logger.info("extraction_complete", extra={
+        "session_id": session_id,
+        "engine": engine_type,
+        "model": extractor.model,
+        "latency": elapsed,
+    })
+    
     return clinical_summary
 
 def main():
@@ -234,12 +303,13 @@ However, later in the review, when prompted about specific logs, they recalled a
 with the home nurse." They reported feeling stable throughout.
 """
 
-    asyncio.run(run_extraction(source_transcript))
+    session_id = uuid.uuid4().hex[:8]
+    asyncio.run(run_extraction(source_transcript, session_id))
 
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format='%(levelname)s: %(message)s')
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(StructuredFormatter())
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
 
     main()

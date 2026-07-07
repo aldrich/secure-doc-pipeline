@@ -45,9 +45,9 @@ async def process_session(
             and the extracted data.
     """
     session_id = uuid.uuid4().hex[:8]
-    logger.info(f"Received session processing request. Assigned Job ID: {session_id}.")
+    logger.info("session_processing_request", extra={"session_id": session_id})
 
-    structured_output = await run_extraction(payload.transcript)
+    structured_output = await run_extraction(payload.transcript, session_id)
     
     background_tasks.add_task(
         run_evaluation,

@@ -16,3 +16,10 @@ wheels/
 
 # AI generated files
 .kilo/
+
+
+# IDE
+.idea/
+.vscode/
+
+.DS_Store

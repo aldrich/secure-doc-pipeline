@@ -22,14 +22,11 @@ from domain.auth import app as auth_app
 from api.routes.transformers import app as transformers_app
 from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
 from domain.settings import settings
+from domain.structured_logger import StructuredFormatter
 
-# Configure the application's root logger to emit INFO-level
-# messages to standard output using a concise format.
-logging.basicConfig(
-    level=logging.INFO,
-    stream=sys.stdout,
-    format="[%(levelname)s] %(message)s",
-)
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(StructuredFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -2,9 +2,11 @@ import asyncio
 import sys, os, logging, time
 from typing import Literal, cast
 from abc import ABC, abstractmethod
+import uuid
 
 from domain.error import ConfigurationError, EvaluationError
 from domain.settings import settings
+from domain.structured_logger import StructuredFormatter
 from schemas.clinical_summary import ClinicalSummary
 from schemas.evaluation_metrics import SummaryEvaluation
 
@@ -77,9 +79,36 @@ class EvaluationEngine(ABC):
                        summary_data: ClinicalSummary,
                        source_transcript: str) -> SummaryEvaluation:
         pass
+    
+    @property
+    @abstractmethod
+    def model(self) -> str:
+        pass
+    
+    @property
+    @abstractmethod
+    def session_id(self) -> str:
+        pass
+
+    @session_id.setter
+    @abstractmethod
+    def session_id(self, value: str) -> None:
+        pass
 
 class GeminiEvaluator(EvaluationEngine):
-
+    
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
+    
     def __init__(self, api_key: str, model: str):
 
         if not api_key:
@@ -93,11 +122,11 @@ class GeminiEvaluator(EvaluationEngine):
             raise ConfigurationError(message)
 
         self.client = genai.Client(api_key=api_key)
-        self.model = model
+        self._model = model
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
 
-        logger.info(f"Running evaluation of summary_data with {self.model}...")
+        logger.info("evaluation_started", extra={"engine": "gemini", "model": self.model})
 
         response = await self.client.aio.models.generate_content(
             model=self.model,
@@ -119,6 +148,18 @@ class GeminiEvaluator(EvaluationEngine):
 
 class OpenAIEvaluator(EvaluationEngine):
 
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
+
     def __init__(self, api_key: str, model: str):
 
         if not api_key:
@@ -131,13 +172,13 @@ class OpenAIEvaluator(EvaluationEngine):
             logger.error(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
         self.api_key = api_key
         self.client = AsyncOpenAI(api_key=self.api_key)
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
 
-        logger.info(f"Running evaluation of summary_data using {self.model}...")
+        logger.info("evaluation_started", extra={"engine": "openai", "model": self.model})
 
         response = await self.client.responses.parse(
             model=self.model,
@@ -157,17 +198,28 @@ class OpenAIEvaluator(EvaluationEngine):
 
 class LlamaEvaluator(EvaluationEngine):
 
+    @property
+    def model(self) -> str:
+        return self._model
     def __init__(self, model: str):
         if not model:
             message = "LLAMA_MODEL_FOR_EVALUATION not found from environment."
             logger.warning(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
+        
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
 
-        logger.info(f"Running evaluation of summary_data using {self.model}...")
+        logger.info("evaluation_started", extra={"engine": "llama", "model": self.model})
 
         async with ollama.AsyncClient() as client:
             response = await client.chat(
@@ -185,6 +237,18 @@ class LlamaEvaluator(EvaluationEngine):
 
 class DeepSeekEvaluator(EvaluationEngine):
 
+    @property
+    def model(self) -> str:
+        return self._model
+    
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, value: str) -> None:
+        self._session_id = value
+    
     def __init__(self, api_key: str, model: str, base_url: str):
         if not api_key:
             message = "DEEPSEEK_API_KEY not found from environment."
@@ -196,11 +260,11 @@ class DeepSeekEvaluator(EvaluationEngine):
             logger.error(message)
             raise ConfigurationError(message)
 
-        self.model = model
+        self._model = model
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str) -> SummaryEvaluation:
-        logger.info(f"Running evaluation of summary_data using {self.model}...")
+        logger.info("evaluation_started", extra={"engine": "deepseek", "model": self.model})
 
         # this is a DeepSeek-specific way to get the response in the correct format
         # source: https://api-docs.deepseek.com/guides/json_mode/
@@ -235,7 +299,6 @@ def get_evaluator(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> E
     elif engine == 'openai':
         api_key = settings.openai_api_key
         model = settings.openai_model_for_evaluation
-        
         return OpenAIEvaluator(api_key, model)
 
     elif engine == 'llama':
@@ -251,7 +314,7 @@ def get_evaluator(engine: Literal["gemini", "llama", "openai", "deepseek"]) -> E
     else:
         raise ConfigurationError(f"Unknown evaluation engine: {engine}. Choose 'gemini', 'openai', 'llama' or 'deepseek'.")
 
-async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str = ""):
+async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str):
     """Unified evaluation function using the configured engine."""
 
     engine_type = settings.eval_engine
@@ -260,19 +323,20 @@ async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, 
 
     start_time = time.perf_counter()
 
+    evaluator.session_id = session_id
+    
     metrics = await evaluator.evaluate(summary_data, source_transcript)
 
     elapsed = round(time.perf_counter() - start_time, 2)
 
-    if len(session_id) > 0:
-        logger.info(f"[Background] Evaluation succeeded for session: {session_id}")
-    else:
-        logger.info(f"[Background] Evaluation succeeded")
+    logger.info("evaluation_complete", extra={
+        "session_id": session_id,
+        "score": metrics.score,
+        "faithful": metrics.faithful,
+        "model": evaluator.model,
+        "latency": elapsed,
+    })
 
-    logger.info(f"Evaluation score: {metrics.score}")
-    logger.info(f"Factual alignment check: {metrics.faithful}")
-    logger.info(f"Summary evaluation: {metrics.model_dump_json(indent=2)}")
-    logger.info(f"latency: {elapsed}s")
 
 async def main():
 
@@ -289,13 +353,14 @@ with the home nurse." They reported feeling stable throughout.
         symptoms_mentioned=[],
         next_steps="schedule for 60 mins of strength exercises"
     )
-
-    await run_evaluation(sample_summary, source_transcript)
+    
+    session_id = uuid.uuid4().hex[:8]
+    await run_evaluation(sample_summary, source_transcript, session_id)
 
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format='%(levelname)s: %(message)s')
-
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(StructuredFormatter())
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    
     asyncio.run(main())
