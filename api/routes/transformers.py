@@ -1,15 +1,15 @@
 """
 Transformers API endpoint file.
 
-This module provides a FastAPI endpoint for processing session transcripts 
-using a transformer-based pipeline. It handles the extraction of structured 
+This module provides a FastAPI endpoint for processing session transcripts
+using a transformer-based pipeline. It handles the extraction of structured
 data and triggers an asynchronous evaluation process.
 """
 
 import logging
 import uuid
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 
 from domain.auth import verify_api_key
 from domain.error import EvaluationError
@@ -23,39 +23,44 @@ app = FastAPI(title="Transformers API")
 
 @app.post("/process-session", status_code=202)
 async def process_session(
-    payload: SessionRequest, 
-    background_tasks: BackgroundTasks, 
+    payload: SessionRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
     _: None = Depends(verify_api_key)
 ):
     """
     Process a session request using the transformers pipeline.
 
-    This endpoint accepts a session transcript, performs an immediate 
-    extraction of structured data, and queues a background task to 
+    This endpoint accepts a session transcript, performs an immediate
+    extraction of structured data, and queues a background task to
     evaluate the quality of the extraction.
 
     Args:
         payload (SessionRequest): The session data containing the transcript to be processed.
-        background_tasks (BackgroundTasks): FastAPI utility for running the evaluation 
+        background_tasks (BackgroundTasks): FastAPI utility for running the evaluation
             process in the background after the response is sent.
         _ (None): Dependency injection for API key verification.
 
     Returns:
-        dict: A dictionary containing the status, a unique session_id, 
+        dict: A dictionary containing the status, a unique session_id,
             and the extracted data.
     """
+
+    container = request.app.state.container
+
     session_id = uuid.uuid4().hex[:8]
     logger.info("session_processing_request", extra={"session_id": session_id})
 
-    structured_output = await run_extraction(payload.transcript, session_id)
-    
+    structured_output = await run_extraction(payload.transcript, session_id, container)
+
     background_tasks.add_task(
         run_evaluation,
         structured_output,
         payload.transcript,
-        session_id,            
+        session_id,
+        container
     )
-    
+
     return {
         "status": "processing_verification",
         "session_id": session_id,

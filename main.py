@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from domain.auth import app as auth_app
 from api.routes.transformers import app as transformers_app
+from domain.container import DependencyContainer
 from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
 from domain.settings import settings
 from domain.structured_logger import StructuredFormatter
@@ -30,6 +31,9 @@ logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    
+    container = DependencyContainer()
+    app.state.container = container
     
     # all these settings are required to be non-null.
     missing = [
@@ -44,6 +48,12 @@ async def lifespan(app: FastAPI):
             ("llama_model_for_extraction", settings.llama_model_for_extraction),
             ("llama_model_for_evaluation", settings.llama_model_for_evaluation),
             ("ollama_host", settings.ollama_host),
+            ("deepseek_api_key", settings.deepseek_api_key),
+            ("deepseek_model_for_extraction", settings.deepseek_model_for_extraction),
+            ("deepseek_model_for_evaluation", settings.deepseek_model_for_evaluation),
+            ("deepseek_base_url", settings.deepseek_base_url),
+            ("extract_engine", settings.extract_engine),
+            ("eval_engine", settings.eval_engine),
         ]
         if not value
     ]

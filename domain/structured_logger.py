@@ -2,7 +2,7 @@
 # messages to standard output using structured JSON format.
 import json
 import logging
-from typing import Any, Dict
+from typing import Any
 
 class StructuredFormatter(logging.Formatter):
     _standard_attrs = frozenset({
