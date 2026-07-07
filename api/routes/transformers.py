@@ -16,12 +16,13 @@ from domain.error import EvaluationError
 from evaluation.evaluator import run_evaluation
 from extraction.extractor import run_extraction
 from schemas.session_request import SessionRequest
+from schemas.session_response import SessionResponse
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Transformers API")
 
-@app.post("/process-session", status_code=202)
+@app.post("/process-session", status_code=202, response_model=SessionResponse)
 async def process_session(
     payload: SessionRequest,
     background_tasks: BackgroundTasks,
