@@ -221,7 +221,7 @@ class LlamaEvaluator(EvaluationEngine):
 
         logger.info("evaluation_started", extra={"engine": "llama", "model": self.model})
 
-        async with ollama.AsyncClient() as client:
+        async with ollama.AsyncClient(host=settings.ollama_host) as client:
             response = await client.chat(
                 model=self.model,
                 messages=[
@@ -328,6 +328,8 @@ async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, 
     metrics = await evaluator.evaluate(summary_data, source_transcript)
 
     elapsed = round(time.perf_counter() - start_time, 2)
+    
+    logger.debug(f"evaluation_result: {metrics.model_dump_json(indent=2)}")
 
     logger.info("evaluation_complete", extra={
         "session_id": session_id,
@@ -361,6 +363,6 @@ if __name__ == "__main__":
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(StructuredFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    logging.basicConfig(level=logging.DEBUG, handlers=[handler])
     
     asyncio.run(main())

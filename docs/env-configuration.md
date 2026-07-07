@@ -110,12 +110,11 @@ This document describes every variable in `.env.example`, its purpose, valid val
 | **Purpose** | Base URL of the Ollama service. |
 | **Possible values** | Any valid HTTP URL pointing to an Ollama instance (e.g., `http://localhost:11434`, `http://ollama-service:11434`). |
 | **Default** | `http://localhost:11434` |
-| **Required?** | Validated at startup as non-empty, but **not actually consumed by the Ollama client** — see note below. |
+| **Required?** | Yes when `EXTRACT_ENGINE=llama` or `EVAL_ENGINE=llama`. Startup will raise `RuntimeError` if empty. |
 | **Dependency** | `ollama>=0.6.2` |
 | **Where checked** | `main.py:47` — startup validation only. |
 | **Docker** | Overridden to `http://ollama-service:11434` in `docker-compose.yml:16`. |
 
-> **Known issue**: `OLLAMA_HOST` is validated at startup but never passed to `ollama.AsyncClient()` or `ollama.chat()` in either `extractor.py` or `evaluator.py`. The Ollama Python client hardcodes `http://localhost:11434` as its default. This means changing `OLLAMA_HOST` has **no runtime effect** beyond passing the startup check. To use a non-default host, the `host=` parameter would need to be wired through to `ollama.AsyncClient()`.
 
 ### `LLAMA_MODEL_FOR_EXTRACTION`
 | Attribute | Details |

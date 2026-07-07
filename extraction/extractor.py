@@ -175,7 +175,7 @@ class LlamaExtractor(ExtractionEngine):
 
         logger.info("extraction_started", extra={"engine": "llama", "model": self.model, "session_id": self.session_id})
 
-        async with ollama.AsyncClient() as client:
+        async with ollama.AsyncClient(host=settings.ollama_host) as client:
             response = await client.chat(
                 model=self.model,
                 messages=[
@@ -284,6 +284,8 @@ async def run_extraction(source_transcript: str, session_id: str) -> ClinicalSum
     clinical_summary = await extractor.extract(source_transcript)
 
     elapsed = round(time.perf_counter() - start_time, 2)
+    
+    logger.debug(f"extraction_result: {clinical_summary.model_dump_json(indent=2)}")
 
     logger.info("extraction_complete", extra={
         "session_id": session_id,
@@ -310,6 +312,6 @@ if __name__ == "__main__":
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(StructuredFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    logging.basicConfig(level=logging.DEBUG, handlers=[handler])
 
     main()
