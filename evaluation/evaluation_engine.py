@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 from google import genai
 from google.genai import types as genai_types
 from domain.settings import settings
-from domain.evaluation_prompt import get_prompt, system_prompt
+from prompts.evaluation import get_prompt, system_prompt
 
 logger = logging.getLogger(__name__)
 

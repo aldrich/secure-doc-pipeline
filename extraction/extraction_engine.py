@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from domain.error import ConfigurationError, ExtractionError
 from schemas.clinical_summary import ClinicalSummary
 from domain.settings import settings
-from domain.extraction_prompt import system_prompt
+from prompts.extraction import system_prompt
 
 import ollama
 from openai import AsyncOpenAI
