@@ -1,12 +1,19 @@
 from unittest.mock import AsyncMock, Mock
-from google.genai import types as genai_types
 
 import pytest
+import ollama
+from google.genai import types as genai_types
 
 from domain.error import ConfigurationError, ExtractionError
 from prompts.extraction import system_prompt
 
-from extraction.extraction_engine import DeepSeekExtractor, GeminiExtractor, OpenAIExtractor
+from extraction.extraction_engine import (
+    DeepSeekExtractor,
+    ExtractionEngine,
+    GeminiExtractor,
+    LlamaExtractor,
+    OpenAIExtractor,
+)
 from schemas.clinical_summary import ClinicalSummary
 
 
@@ -175,3 +182,40 @@ class TestExtractionEngine:
 
         with pytest.raises(ExtractionError, match="Empty response"):
             await extractor.extract("Patient reported feeling anxious!", "sess_001")
+
+    @pytest.mark.asyncio
+    async def test_llama_extractor_extract_success(self, mocker):
+        mock_summary = ClinicalSummary(
+            patient_mood="anxious",
+            exercises_completed=["balance exercises"],
+            symptoms_mentioned=["anxiety"],
+            next_steps="Continue daily exercises",
+        )
+        mock_response = {"message": {"content": mock_summary.model_dump_json()}}
+
+        mock_ollama_client = AsyncMock()
+        mock_ollama_client.__aenter__.return_value = mock_ollama_client
+        mock_ollama_client.chat = AsyncMock(return_value=mock_response)
+        mocker.patch("ollama.AsyncClient", return_value=mock_ollama_client)
+
+        extractor = LlamaExtractor(model="llama3.2:3b")
+        result = await extractor.extract("Patient reported feeling anxious.", "sess_001")
+
+        assert isinstance(result, ClinicalSummary)
+        assert result.patient_mood == "anxious"
+        mock_ollama_client.chat.assert_awaited_once_with(
+            model="llama3.2:3b",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "<transcript>Patient reported feeling anxious.</transcript>"},
+            ],
+            format=ClinicalSummary.model_json_schema(),
+        )
+
+    def test_llama_extractor_init_missing_model(self):
+        with pytest.raises(ConfigurationError, match="LLAMA_MODEL_FOR_EXTRACTION not found"):
+            LlamaExtractor(model="")
+
+    def test_abstract_base_class_cannot_be_instantiated(self):
+        with pytest.raises(TypeError):
+            ExtractionEngine()

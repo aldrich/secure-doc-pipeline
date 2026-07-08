@@ -110,7 +110,7 @@ class GeminiExtractor(ExtractionEngine):
             clean_data = ClinicalSummary.model_validate(response.parsed)
         except ValidationError:
             raise ExtractionError(f"Unexpected response shape: {type(response.parsed)}")
-        
+
         return clean_data
 
 class LlamaExtractor(ExtractionEngine):
