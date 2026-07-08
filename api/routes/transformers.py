@@ -9,9 +9,11 @@ data and triggers an asynchronous evaluation process.
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends
 
 from domain.auth import verify_api_key
+from domain.container import DependencyContainer
+from domain.dependencies import get_container
 from evaluation.evaluator import run_evaluation
 from extraction.extractor import run_extraction
 from schemas.session_request import SessionRequest
@@ -21,12 +23,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["transformers"])
 
-@router.post("/process-session", status_code=202, response_model=SessionResponse)
+@router.post("/process-session", status_code=202, response_model=SessionResponse, dependencies=[Depends(verify_api_key)])
 async def process_session(
     payload: SessionRequest,
     background_tasks: BackgroundTasks,
-    request: Request,
-    _: None = Depends(verify_api_key)
+    container: DependencyContainer = Depends(get_container)
 ):
     """
     Process a session request using the transformers pipeline.
@@ -45,8 +46,6 @@ async def process_session(
         dict: A dictionary containing the status, a unique session_id,
             and the extracted data.
     """
-
-    container = request.app.state.container
 
     session_id = uuid.uuid4().hex[:8]
     logger.info("session_processing_request", extra={"session_id": session_id})
