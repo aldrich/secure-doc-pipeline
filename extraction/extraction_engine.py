@@ -2,6 +2,8 @@ import logging
 
 from abc import ABC, abstractmethod
 
+from pydantic import ValidationError
+
 from domain.error import ConfigurationError, ExtractionError
 from schemas.clinical_summary import ClinicalSummary
 from domain.settings import settings
@@ -104,7 +106,11 @@ class GeminiExtractor(ExtractionEngine):
             ),
         )
 
-        clean_data = ClinicalSummary.model_validate(response.parsed)
+        try:
+            clean_data = ClinicalSummary.model_validate(response.parsed)
+        except ValidationError:
+            raise ExtractionError(f"Unexpected response shape: {type(response.parsed)}")
+        
         return clean_data
 
 class LlamaExtractor(ExtractionEngine):
@@ -177,11 +183,16 @@ class DeepSeekExtractor(ExtractionEngine):
             temperature=0,
         )
 
-        raw_content = response.choices[0].message.content
-        if raw_content is None:
-            raise ExtractionError("Empty response from DeepSeek")
-        
-        logger.info("extraction_raw_response", extra={"engine": "deepseek", "model": self.model, "session_id": session_id, "raw_content_length": len(raw_content)})
+        try:
+            raw_content = response.choices[0].message.content
 
-        clinical_summary = ClinicalSummary.model_validate_json(raw_content)
+            if raw_content is None:
+                raise ExtractionError("Empty response from DeepSeek")
+            
+            clinical_summary = ClinicalSummary.model_validate_json(raw_content)
+            
+        except ValidationError as e:
+            raise ExtractionError("Unexpected response shape") from e
+
+        logger.info("extraction_raw_response", extra={"engine": "deepseek", "model": self.model, "session_id": session_id, "raw_content_length": len(raw_content)})
         return clinical_summary
