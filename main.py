@@ -18,8 +18,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from domain.auth import app as auth_app
-from api.routes.transformers import app as transformers_app
+from domain.auth import router as auth_router
+from api.routes.transformers import router as transformers_router
 from domain.container import DependencyContainer
 from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
 from domain.settings import settings
@@ -69,10 +69,10 @@ app = FastAPI(
 )
 
 # Register authentication endpoints.
-app.include_router(auth_app.router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
 
 # Register document transformation endpoints.
-app.include_router(transformers_app.router, prefix="/api/v1")
+app.include_router(transformers_router, prefix="/api/v1")
 
 
 @app.exception_handler(ConfigurationError)
