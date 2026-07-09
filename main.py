@@ -22,7 +22,7 @@ from domain.auth import router as auth_router, verify_api_key
 from domain.container import DependencyContainer
 from domain.dependencies import get_container
 from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
-from domain.settings import settings
+from domain.settings import settings, validate_settings
 from domain.structured_logger import StructuredFormatter
 from schemas.session_request import SessionRequest
 from schemas.session_response import SessionResponse
@@ -33,37 +33,12 @@ logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    
+
     container = DependencyContainer()
     app.state.container = container
-    
-    # all these settings are required to be non-null.
-    missing = [
-        name for name, value in [
-            ("gemini_api_key", settings.gemini_api_key),
-            ("gemini_model_for_extraction", settings.gemini_model_for_extraction),
-            ("gemini_model_for_evaluation", settings.gemini_model_for_evaluation),
-            ("openai_api_key", settings.openai_api_key),
-            ("openai_model_for_extraction", settings.openai_model_for_extraction),
-            ("openai_model_for_evaluation", settings.openai_model_for_evaluation),
-            ("api_key", settings.api_key),
-            ("llama_model_for_extraction", settings.llama_model_for_extraction),
-            ("llama_model_for_evaluation", settings.llama_model_for_evaluation),
-            ("ollama_host", settings.ollama_host),
-            ("deepseek_api_key", settings.deepseek_api_key),
-            ("deepseek_model_for_extraction", settings.deepseek_model_for_extraction),
-            ("deepseek_model_for_evaluation", settings.deepseek_model_for_evaluation),
-            ("deepseek_base_url", settings.deepseek_base_url),
-            ("extract_engine", settings.extract_engine),
-            ("eval_engine", settings.eval_engine),
-        ]
-        if not value
-    ]
-    if missing:
-        raise ConfigurationError(
-            "Required settings are missing or empty: "
-            + ", ".join(missing)
-        )
+
+    validate_settings(settings)
+
     yield
 
 app = FastAPI(
@@ -87,28 +62,28 @@ async def config_handler(request, exc):
         status_code=500,
         content={"detail": str(exc)},
     )
-    
+
 @app.exception_handler(AuthenticationError)
 async def auth_handler(request, exc):
     return JSONResponse(
         status_code=401,
         content={"detail": str(exc)},
     )
-    
+
 @app.exception_handler(ProviderError)
 async def provider_handler(request, exc):
     return JSONResponse(
         status_code=502,
         content={"detail": str(exc)},
     )
-    
+
 @app.exception_handler(ExtractionError)
 async def extraction_handler(request, exc):
     return JSONResponse(
         status_code=422,
         content={"detail": str(exc)},
     )
-    
+
 @app.exception_handler(EvaluationError)
 async def evaluation_handler(request, exc):
     return JSONResponse(
