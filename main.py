@@ -15,15 +15,17 @@ import sys
 import logging
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.responses import JSONResponse
 
-from domain.auth import router as auth_router
-from api.routes.transformers import router as transformers_router
+from domain.auth import router as auth_router, verify_api_key
 from domain.container import DependencyContainer
+from domain.dependencies import get_container
 from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
 from domain.settings import settings
 from domain.structured_logger import StructuredFormatter
+from schemas.session_request import SessionRequest
+from schemas.session_response import SessionResponse
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(StructuredFormatter())
@@ -71,9 +73,13 @@ app = FastAPI(
 # Register authentication endpoints.
 app.include_router(auth_router, prefix="/api/v1")
 
-# Register document transformation endpoints.
-app.include_router(transformers_router, prefix="/api/v1")
-
+@app.post("/api/v1/process-session", status_code=202, response_model=SessionResponse, dependencies=[Depends(verify_api_key)])
+async def process_session(
+    payload: SessionRequest,
+    background_tasks: BackgroundTasks,
+    container: DependencyContainer = Depends(get_container)
+):
+    return await container.pipeline_service.process_session(payload.transcript, background_tasks)
 
 @app.exception_handler(ConfigurationError)
 async def config_handler(request, exc):

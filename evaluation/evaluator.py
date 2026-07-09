@@ -1,17 +1,17 @@
 import asyncio
-import sys, logging, time
+import sys
+import logging
+import time
 import uuid
 
-from domain.container import DependencyContainer
 from domain.structured_logger import StructuredFormatter
+from evaluation.evaluation_engine import EvaluationEngine
 from schemas.clinical_summary import ClinicalSummary
 
 logger = logging.getLogger(__name__)
 
-async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str, container: DependencyContainer):
+async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, session_id: str, evaluator: EvaluationEngine):
     """Unified evaluation function using the configured engine."""
-
-    evaluator = container.eval_engine
 
     start_time = time.perf_counter()
     
@@ -19,15 +19,16 @@ async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, 
 
     elapsed = round(time.perf_counter() - start_time, 2)
     
-    logger.debug(f"evaluation_result: {metrics.model_dump_json(indent=2)}")
+    if metrics is not None:
+        logger.debug(f"evaluation_result: {metrics.model_dump_json(indent=2)}")
 
-    logger.info("evaluation_complete", extra={
-        "session_id": session_id,
-        "score": metrics.score,
-        "faithful": metrics.faithful,
-        "model": evaluator.model,
-        "latency": elapsed,
-    })
+        logger.info("evaluation_complete", extra={
+            "session_id": session_id,
+            "score": metrics.score,
+            "faithful": metrics.faithful,
+            "model": evaluator.model,
+            "latency": elapsed,
+        })
 
 
 async def main():
@@ -47,14 +48,16 @@ with the home nurse." They reported feeling stable throughout.
     )
     
     session_id = uuid.uuid4().hex[:8]
+    
+    from domain.container import DependencyContainer
     container = DependencyContainer()
     
-    await run_evaluation(sample_summary, source_transcript, session_id, container)
+    await run_evaluation(sample_summary, source_transcript, session_id, container.eval_engine)
 
 if __name__ == "__main__":
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(StructuredFormatter())
-    logging.basicConfig(level=logging.DEBUG, handlers=[handler])
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
     
     asyncio.run(main())

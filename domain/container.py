@@ -2,6 +2,7 @@ from domain.settings import settings
 from domain.error import ConfigurationError
 from evaluation.evaluation_engine import EvaluationEngine, OpenAIEvaluator, LlamaEvaluator, DeepSeekEvaluator, GeminiEvaluator
 from extraction.extraction_engine import ExtractionEngine, OpenAIExtractor, LlamaExtractor, DeepSeekExtractor, GeminiExtractor
+from services.pipeline import PipelineService
 
 class DependencyContainer:
     def __init__(self, settings=settings):
@@ -9,6 +10,7 @@ class DependencyContainer:
         self._settings = settings
         self._eval_engine: EvaluationEngine | None = None
         self._extract_engine: ExtractionEngine | None = None
+        self._pipeline_service: PipelineService | None = None
 
     def create_eval_engine(self) -> EvaluationEngine:
         engine = self._settings.eval_engine
@@ -35,6 +37,9 @@ class DependencyContainer:
             return GeminiExtractor(self._settings.gemini_api_key, self._settings.gemini_model_for_extraction)
         else:
             raise ConfigurationError(f"Unsupported extraction engine: {engine}")
+        
+    def create_pipeline_service(self) -> PipelineService:
+        return PipelineService(self.extract_engine, self.eval_engine)
 
     @property
     def eval_engine(self) -> EvaluationEngine:
@@ -47,4 +52,9 @@ class DependencyContainer:
         if self._extract_engine is None:
             self._extract_engine = self.create_extract_engine()
         return self._extract_engine
-
+    
+    @property
+    def pipeline_service(self) -> PipelineService:
+        if self._pipeline_service is None:
+            self._pipeline_service = self.create_pipeline_service()
+        return self._pipeline_service
