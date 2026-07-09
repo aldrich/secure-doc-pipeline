@@ -1,7 +1,7 @@
 from domain.settings import settings
 from domain.error import ConfigurationError
-from evaluation.evaluation_engine import EvaluationEngine, OpenAIEvaluator, LlamaEvaluator, DeepSeekEvaluator, GeminiEvaluator
-from extraction.extraction_engine import ExtractionEngine, OpenAIExtractor, LlamaExtractor, DeepSeekExtractor, GeminiExtractor
+from evaluation.evaluation_engine import EvaluationEngine
+from extraction.extraction_engine import ExtractionEngine
 from services.pipeline import PipelineService
 
 class DependencyContainer:
@@ -15,12 +15,16 @@ class DependencyContainer:
     def create_eval_engine(self) -> EvaluationEngine:
         engine = self._settings.eval_engine
         if engine == "openai":
+            from evaluation.evaluation_engine import OpenAIEvaluator
             return OpenAIEvaluator(self._settings.openai_api_key, self._settings.openai_model_for_evaluation)
         elif engine == "llama":
+            from evaluation.evaluation_engine import LlamaEvaluator
             return LlamaEvaluator(self._settings.llama_model_for_evaluation)
         elif engine == "deepseek":
+            from evaluation.evaluation_engine import DeepSeekEvaluator
             return DeepSeekEvaluator(self._settings.deepseek_api_key, self._settings.deepseek_model_for_evaluation, self._settings.deepseek_base_url)
         elif engine == "gemini":
+            from evaluation.evaluation_engine import GeminiEvaluator
             return GeminiEvaluator(self._settings.gemini_api_key, self._settings.gemini_model_for_evaluation)
         else:
             raise ConfigurationError(f"Unsupported evaluation engine: {engine}")
@@ -28,12 +32,18 @@ class DependencyContainer:
     def create_extract_engine(self) -> ExtractionEngine:
         engine = self._settings.extract_engine
         if engine == "openai":
+            from extraction.extraction_engine import OpenAIExtractor
             return OpenAIExtractor(self._settings.openai_api_key, self._settings.openai_model_for_extraction)
         elif engine == "llama":
+            from extraction.extraction_engine import LlamaExtractor
             return LlamaExtractor(self._settings.llama_model_for_extraction)
         elif engine == "deepseek":
-            return DeepSeekExtractor(self._settings.deepseek_api_key, self._settings.deepseek_model_for_extraction, self._settings.deepseek_base_url)
+            from extraction.extraction_engine import DeepSeekExtractor
+            return DeepSeekExtractor(self._settings.deepseek_api_key, 
+                                     self._settings.deepseek_model_for_extraction, 
+                                     self._settings.deepseek_base_url)
         elif engine == "gemini":
+            from extraction.extraction_engine import GeminiExtractor
             return GeminiExtractor(self._settings.gemini_api_key, self._settings.gemini_model_for_extraction)
         else:
             raise ConfigurationError(f"Unsupported extraction engine: {engine}")
