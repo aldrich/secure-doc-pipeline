@@ -5,9 +5,11 @@ from abc import ABC, abstractmethod
 from pydantic import ValidationError
 
 from domain.error import ConfigurationError, ExtractionError
+from domain.retry import with_llm_retry
 from schemas.clinical_summary import ClinicalSummary
 from prompts.extraction import system_prompt
 
+import httpx
 import ollama
 from openai import AsyncOpenAI
 from google import genai
@@ -33,7 +35,7 @@ class OpenAIExtractor(ExtractionEngine):
     def model(self) -> str:
         return self._model
 
-    def __init__(self, api_key: str, model: str):
+    def __init__(self, api_key: str, model: str, max_retries: int = 3, retry_base_delay: float = 1.0, retry_max_delay: float = 30.0, timeout: int = 120):
         if not model:
             message = "OPENAI_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
@@ -46,12 +48,16 @@ class OpenAIExtractor(ExtractionEngine):
 
         self._model = model
         self.api_key = api_key
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        self.client = AsyncOpenAI(api_key=self.api_key, timeout=httpx.Timeout(timeout))
+        self._retry_decorator = with_llm_retry(max_retries=max_retries, base_delay=retry_base_delay, max_delay=retry_max_delay)
 
     async def extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
 
         logger.info("extraction_started", extra={"engine": "openai", "model": self.model, "session_id": session_id})
 
+        return await self._retry_decorator(self._do_extract)(source_transcript, session_id)
+
+    async def _do_extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
         response = await self.client.responses.parse(
             model=self.model,
             input=[
@@ -72,7 +78,7 @@ class GeminiExtractor(ExtractionEngine):
     def model(self) -> str:
         return self._model
         
-    def __init__(self, api_key: str, model: str):
+    def __init__(self, api_key: str, model: str, max_retries: int = 3, retry_base_delay: float = 1.0, retry_max_delay: float = 30.0, timeout: int = 120):
         if not model:
             message = "GEMINI_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
@@ -85,12 +91,16 @@ class GeminiExtractor(ExtractionEngine):
 
         self._model = model
         self.api_key = api_key
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = genai.Client(api_key=self.api_key, http_options={"timeout": timeout * 1000})
+        self._retry_decorator = with_llm_retry(max_retries=max_retries, base_delay=retry_base_delay, max_delay=retry_max_delay)
 
     async def extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
 
         logger.info("extraction_started", extra={"engine": "gemini", "model": self.model, "session_id": session_id})
 
+        return await self._retry_decorator(self._do_extract)(source_transcript, session_id)
+
+    async def _do_extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
         response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=f"""<transcript>
@@ -118,7 +128,7 @@ class LlamaExtractor(ExtractionEngine):
     def model(self) -> str:
         return self._model
         
-    def __init__(self, model: str, ollama_host: str):
+    def __init__(self, model: str, ollama_host: str, max_retries: int = 3, retry_base_delay: float = 1.0, retry_max_delay: float = 30.0, timeout: int = 120):
         if not model:
             message = "LLAMA_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
@@ -126,12 +136,17 @@ class LlamaExtractor(ExtractionEngine):
 
         self._model = model
         self._ollama_host = ollama_host
+        self._timeout = timeout
+        self._retry_decorator = with_llm_retry(max_retries=max_retries, base_delay=retry_base_delay, max_delay=retry_max_delay)
 
     async def extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
 
         logger.info("extraction_started", extra={"engine": "llama", "model": self.model, "session_id": session_id})
 
-        async with ollama.AsyncClient(host=self._ollama_host) as client:
+        return await self._retry_decorator(self._do_extract)(source_transcript, session_id)
+
+    async def _do_extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
+        async with ollama.AsyncClient(host=self._ollama_host, timeout=self._timeout) as client:
             response = await client.chat(
                 model=self.model,
                 messages=[
@@ -151,7 +166,7 @@ class DeepSeekExtractor(ExtractionEngine):
     def model(self) -> str:
         return self._model
     
-    def __init__(self, api_key: str, model: str, base_url: str):
+    def __init__(self, api_key: str, model: str, base_url: str, max_retries: int = 3, retry_base_delay: float = 1.0, retry_max_delay: float = 30.0, timeout: int = 120):
         if not api_key:
             message = "DEEPSEEK_API_KEY not found from environment."
             logger.warning(message)
@@ -163,12 +178,15 @@ class DeepSeekExtractor(ExtractionEngine):
             raise ConfigurationError(message)
 
         self._model = model
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=httpx.Timeout(timeout))
+        self._retry_decorator = with_llm_retry(max_retries=max_retries, base_delay=retry_base_delay, max_delay=retry_max_delay)
 
     async def extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
         logger.info("extraction_started", extra={"engine": "deepseek", "model": self.model, "session_id": session_id})
-        
-        # source: https://api-docs.deepseek.com/guides/json_mode/
+
+        return await self._retry_decorator(self._do_extract)(source_transcript, session_id)
+
+    async def _do_extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
         response_shape_spec = f'respond in the following JSON format: {ClinicalSummary.model_json_schema()}'
 
         modified_system_prompt = "\n".join([system_prompt, response_shape_spec])

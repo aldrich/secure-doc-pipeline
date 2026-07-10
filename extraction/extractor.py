@@ -4,6 +4,7 @@ import sys
 import time
 import uuid
 
+from domain.error import ProviderError
 from domain.structured_logger import StructuredFormatter
 from extraction.extraction_engine import ExtractionEngine
 from schemas.clinical_summary import ClinicalSummary
@@ -15,7 +16,11 @@ async def run_extraction(source_transcript: str, session_id: str, extractor: Ext
     
     start_time = time.perf_counter()
     
-    clinical_summary = await extractor.extract(source_transcript, session_id)
+    try:
+        clinical_summary = await extractor.extract(source_transcript, session_id)
+    except ProviderError:
+        logger.error("extraction_provider_failed", extra={"session_id": session_id, "model": extractor.model})
+        raise
 
     elapsed = round(time.perf_counter() - start_time, 2)
     

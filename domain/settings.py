@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
     llama_model_for_extraction: str = "llama3.2:3b"
     llama_model_for_evaluation: str = "llama3.1:8b"
+
+    llm_max_retries: int = 3
+    llm_retry_base_delay: float = 1.0
+    llm_retry_max_delay: float = 30.0
+    llm_timeout: int = 120
     
     api_key: str = ""    
     

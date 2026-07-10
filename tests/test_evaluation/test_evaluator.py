@@ -1,5 +1,6 @@
 import pytest
 
+from domain.error import EvaluationError, ProviderError
 from evaluation.evaluator import run_evaluation
 from schemas.evaluation_metrics import SummaryEvaluation
 
@@ -34,8 +35,15 @@ class TestRunEvaluation:
 
     @pytest.mark.asyncio
     async def test_propagates_engine_errors(self, mock_eval_engine, sample_clinical_summary):
-        from domain.error import EvaluationError
         mock_eval_engine.evaluate.side_effect = EvaluationError("Eval failed")
 
         with pytest.raises(EvaluationError, match="Eval failed"):
             await run_evaluation(sample_clinical_summary, "test", "sess_003", mock_eval_engine)
+
+    @pytest.mark.asyncio
+    async def test_provider_error_returns_none(self, mock_eval_engine, sample_clinical_summary):
+        mock_eval_engine.evaluate.side_effect = ProviderError("Upstream failed")
+
+        result = await run_evaluation(sample_clinical_summary, "test", "sess_004", mock_eval_engine)
+
+        assert result is None

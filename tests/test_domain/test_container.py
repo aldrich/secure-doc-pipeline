@@ -36,6 +36,10 @@ class TestDependencyContainer:
         settings.deepseek_model_for_extraction = "deepseek-v4-flash"
         settings.deepseek_model_for_evaluation = "deepseek-v4-pro"
         settings.deepseek_base_url = "https://api.deepseek.com"
+        settings.llm_max_retries = 3
+        settings.llm_retry_base_delay = 1.0
+        settings.llm_retry_max_delay = 30.0
+        settings.llm_timeout = 120
         for k, v in overrides.items():
             setattr(settings, k, v)
         return settings

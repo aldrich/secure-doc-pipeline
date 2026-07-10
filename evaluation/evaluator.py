@@ -4,6 +4,7 @@ import logging
 import time
 import uuid
 
+from domain.error import ProviderError
 from domain.structured_logger import StructuredFormatter
 from evaluation.evaluation_engine import EvaluationEngine
 from schemas.clinical_summary import ClinicalSummary
@@ -15,7 +16,11 @@ async def run_evaluation(summary_data: ClinicalSummary, source_transcript: str, 
 
     start_time = time.perf_counter()
     
-    metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
+    try:
+        metrics = await evaluator.evaluate(summary_data, source_transcript, session_id)
+    except ProviderError:
+        logger.error("evaluation_provider_failed", extra={"session_id": session_id, "model": evaluator.model})
+        return
 
     elapsed = round(time.perf_counter() - start_time, 2)
     

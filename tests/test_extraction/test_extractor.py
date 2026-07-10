@@ -1,5 +1,6 @@
 import pytest
 
+from domain.error import ExtractionError, ProviderError
 from extraction.extractor import run_extraction
 from schemas.clinical_summary import ClinicalSummary
 
@@ -33,8 +34,14 @@ class TestRunExtraction:
 
     @pytest.mark.asyncio
     async def test_propagates_engine_errors(self, mock_extract_engine):
-        from domain.error import ExtractionError
         mock_extract_engine.extract.side_effect = ExtractionError("Engine failed")
 
         with pytest.raises(ExtractionError, match="Engine failed"):
             await run_extraction("test", "sess_003", mock_extract_engine)
+
+    @pytest.mark.asyncio
+    async def test_propagates_provider_error(self, mock_extract_engine):
+        mock_extract_engine.extract.side_effect = ProviderError("Upstream failed")
+
+        with pytest.raises(ProviderError, match="Upstream failed"):
+            await run_extraction("test", "sess_004", mock_extract_engine)

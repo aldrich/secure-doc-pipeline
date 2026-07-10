@@ -23,3 +23,7 @@ wheels/
 .vscode/
 
 .DS_Store
+
+# OpenCode
+opencode.json
+tui.json
