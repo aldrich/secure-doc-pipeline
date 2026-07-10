@@ -171,7 +171,7 @@ class TestEvaluationEngine:
         mock_ollama_client.chat = AsyncMock(return_value=mock_response)
         mocker.patch("ollama.AsyncClient", return_value=mock_ollama_client)
 
-        evaluator = LlamaEvaluator(model="llama3.1:8b")
+        evaluator = LlamaEvaluator(model="llama3.1:8b", ollama_host="http://localhost:11434")
         result = await evaluator.evaluate(summary_data, "Patient reported feeling anxious.", "sess_001")
 
         assert isinstance(result, SummaryEvaluation)
@@ -187,7 +187,7 @@ class TestEvaluationEngine:
 
     def test_llama_evaluator_init_missing_model(self):
         with pytest.raises(ConfigurationError, match="LLAMA_MODEL_FOR_EVALUATION not found"):
-            LlamaEvaluator(model="")
+            LlamaEvaluator(model="", ollama_host="http://localhost:11434")
 
     @pytest.mark.asyncio
     async def test_deepseek_evaluator_evaluate_success(self):

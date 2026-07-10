@@ -6,7 +6,6 @@ from pydantic import ValidationError
 
 from domain.error import ConfigurationError, ExtractionError
 from schemas.clinical_summary import ClinicalSummary
-from domain.settings import settings
 from prompts.extraction import system_prompt
 
 import ollama
@@ -92,7 +91,7 @@ class GeminiExtractor(ExtractionEngine):
 
         logger.info("extraction_started", extra={"engine": "gemini", "model": self.model, "session_id": session_id})
 
-        response = self.client.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=f"""<transcript>
 {source_transcript}
@@ -119,19 +118,20 @@ class LlamaExtractor(ExtractionEngine):
     def model(self) -> str:
         return self._model
         
-    def __init__(self, model: str):
+    def __init__(self, model: str, ollama_host: str):
         if not model:
             message = "LLAMA_MODEL_FOR_EXTRACTION not found from environment."
             logger.warning(message)
             raise ConfigurationError(message)
 
         self._model = model
+        self._ollama_host = ollama_host
 
     async def extract(self, source_transcript: str, session_id: str) -> ClinicalSummary:
 
         logger.info("extraction_started", extra={"engine": "llama", "model": self.model, "session_id": session_id})
 
-        async with ollama.AsyncClient(host=settings.ollama_host) as client:
+        async with ollama.AsyncClient(host=self._ollama_host) as client:
             response = await client.chat(
                 model=self.model,
                 messages=[

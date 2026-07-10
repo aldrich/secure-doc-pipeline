@@ -19,7 +19,7 @@ class DependencyContainer:
             return OpenAIEvaluator(self._settings.openai_api_key, self._settings.openai_model_for_evaluation)
         elif engine == "llama":
             from evaluation.evaluation_engine import LlamaEvaluator
-            return LlamaEvaluator(self._settings.llama_model_for_evaluation)
+            return LlamaEvaluator(self._settings.llama_model_for_evaluation, self._settings.ollama_host)
         elif engine == "deepseek":
             from evaluation.evaluation_engine import DeepSeekEvaluator
             return DeepSeekEvaluator(self._settings.deepseek_api_key, self._settings.deepseek_model_for_evaluation, self._settings.deepseek_base_url)
@@ -36,7 +36,7 @@ class DependencyContainer:
             return OpenAIExtractor(self._settings.openai_api_key, self._settings.openai_model_for_extraction)
         elif engine == "llama":
             from extraction.extraction_engine import LlamaExtractor
-            return LlamaExtractor(self._settings.llama_model_for_extraction)
+            return LlamaExtractor(self._settings.llama_model_for_extraction, self._settings.ollama_host)
         elif engine == "deepseek":
             from extraction.extraction_engine import DeepSeekExtractor
             return DeepSeekExtractor(self._settings.deepseek_api_key, 

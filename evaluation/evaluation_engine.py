@@ -8,7 +8,6 @@ import ollama
 from openai import AsyncOpenAI
 from google import genai
 from google.genai import types as genai_types
-from domain.settings import settings
 from prompts.evaluation import get_prompt, system_prompt
 
 logger = logging.getLogger(__name__)
@@ -118,19 +117,20 @@ class LlamaEvaluator(EvaluationEngine):
     @property
     def model(self) -> str:
         return self._model
-    def __init__(self, model: str):
+    def __init__(self, model: str, ollama_host: str):
         if not model:
             message = "LLAMA_MODEL_FOR_EVALUATION not found from environment."
             logger.warning(message)
             raise ConfigurationError(message)
 
         self._model = model
+        self._ollama_host = ollama_host
         
     async def evaluate(self, summary_data: ClinicalSummary, source_transcript: str, session_id: str) -> SummaryEvaluation:
 
         logger.info("evaluation_started", extra={"engine": "llama", "model": self.model, "session_id": session_id})
 
-        async with ollama.AsyncClient(host=settings.ollama_host) as client:
+        async with ollama.AsyncClient(host=self._ollama_host) as client:
             response = await client.chat(
                 model=self.model,
                 messages=[
