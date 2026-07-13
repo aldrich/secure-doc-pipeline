@@ -20,6 +20,11 @@ class LLMClient(ABC):
 
         pass
 
+    @abstractmethod
+    def get_name(self) -> str:
+
+        pass
+
 
 class LLMEngine:
     def __init__(

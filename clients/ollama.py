@@ -9,6 +9,9 @@ class OllamaClient(LLMClient):
         self._ollama_host = ollama_host
         self._timeout = timeout
 
+    def get_name(self) -> str:
+        return 'ollama'
+
     async def generate_structured(
         self,
         model: str,

@@ -11,6 +11,9 @@ class DeepSeekClient(LLMClient):
         self._timeout = timeout
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
 
+    def get_name(self) -> str:
+        return "deepseek"
+
     async def generate_structured(
         self,
         model: str,

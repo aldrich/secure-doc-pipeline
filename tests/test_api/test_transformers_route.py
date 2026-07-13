@@ -1,20 +1,23 @@
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+
 from domain.auth import verify_api_key
 from domain.error import ExtractionError
+from domain.settings import settings
+from main import extraction_handler, process_session
 from schemas.clinical_summary import ClinicalSummary
 from schemas.session_response import SessionResponse
 from services.pipeline import PipelineService
-from main import process_session, extraction_handler
+
 
 class TestProcessSession:
     @pytest.fixture(autouse=True)
-    def setup(self, monkeypatch):
-        monkeypatch.setenv("API_KEY", "test-api-key")
-        monkeypatch.setattr("services.pipeline.uuid.uuid4", lambda: Mock(hex="abc12345"))
+    def setup(self, mocker):
+        mocker.patch.object(settings, "api_key", "test-api-key")
+        mocker.patch("services.pipeline.uuid.uuid4", return_value=Mock(hex="abc12345"))
         self.test_app = FastAPI()
         self.test_app.post(
             "/api/v1/process-session",
@@ -47,7 +50,9 @@ class TestProcessSession:
 
     def test_successful_processing(self, mock_extraction, container_with_async_eval):
         self.test_app.state.container = container_with_async_eval
-        with patch("services.pipeline.run_extraction", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "services.pipeline.run_extraction", new_callable=AsyncMock
+        ) as mock_run:
             mock_run.return_value = mock_extraction
             response = self.client.post(
                 "/api/v1/process-session",
@@ -97,7 +102,9 @@ class TestProcessSession:
 
     def test_extraction_failure(self, container_with_async_eval):
         self.test_app.state.container = container_with_async_eval
-        with patch("services.pipeline.run_extraction", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "services.pipeline.run_extraction", new_callable=AsyncMock
+        ) as mock_run:
             mock_run.side_effect = ExtractionError("Extraction failed")
             response = self.client.post(
                 "/api/v1/process-session",
@@ -106,10 +113,14 @@ class TestProcessSession:
             )
         assert response.status_code == 422
 
-    def test_background_task_scheduled(self, mock_extraction, container_with_async_eval):
+    def test_background_task_scheduled(
+        self, mock_extraction, container_with_async_eval
+    ):
         self.test_app.state.container = container_with_async_eval
         with (
-            patch("services.pipeline.run_extraction", new_callable=AsyncMock) as mock_run,
+            patch(
+                "services.pipeline.run_extraction", new_callable=AsyncMock
+            ) as mock_run,
             patch("services.pipeline.run_evaluation") as mock_eval,
         ):
             mock_run.return_value = mock_extraction

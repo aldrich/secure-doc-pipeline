@@ -11,6 +11,9 @@ class OpenAIClient(LLMClient):
         self._timeout = timeout
         self._client = AsyncOpenAI(api_key=self._api_key, timeout=timeout)
 
+    def get_name(self) -> str:
+        return "openai"
+
     async def generate_structured(
         self,
         model: str,
@@ -21,13 +24,15 @@ class OpenAIClient(LLMClient):
         response = await self._client.responses.parse(
             model=model,
             input=[
-                { "role": "system", "content": system_prompt },
-                { "role": "user", "content": f"<transcript>{user_content}</transcript>" }
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
             ],
-            text_format=response_schema
+            text_format=response_schema,
         )
 
         if not isinstance(response.output_parsed, response_schema):
-            raise ExtractionError(f"Unexpected response shape: {type(response.output_parsed)}")
+            raise ExtractionError(
+                f"Unexpected response shape: {type(response.output_parsed)}"
+            )
 
         return response.output_parsed

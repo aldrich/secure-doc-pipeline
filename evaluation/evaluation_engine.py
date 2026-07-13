@@ -13,15 +13,21 @@ class EvaluationEngine(LLMEngine):
     async def evaluate(
         self, summary_data: ClinicalSummary, source_transcript: str, session_id: str
     ):
-        logger.info("evaluation_started")  # ...
+        logger.info(
+            "evaluation_started",
+            extra={
+                "engine": self.client.get_name(),
+                "model": self.model,
+                "session_id": session_id,
+            },
+        )
         return await self._retry_decorator(self._do_evaluate)(
-            summary_data, source_transcript, session_id
+            summary_data, source_transcript
         )
 
-    async def _do_evaluate(
-        self, summary_data: ClinicalSummary, source_transcript: str, session_id: str
-    ):
+    async def _do_evaluate(self, summary_data: ClinicalSummary, source_transcript: str):
         prompt = get_prompt(source_transcript, summary_data)
+
         result = await self._client.generate_structured(
             model=self._model,
             system_prompt=system_prompt,
@@ -30,4 +36,5 @@ class EvaluationEngine(LLMEngine):
         )
         if not isinstance(result, SummaryEvaluation):
             raise EvaluationError(f"Unexpected response shape: {type(result)}")
+
         return result

@@ -14,6 +14,9 @@ class GeminiClient(LLMClient):
             api_key=self._api_key, http_options={"timeout": timeout * 1000}
         )
 
+    def get_name(self) -> str:
+        return 'gemini'
+
     async def generate_structured(
         self,
         model: str,
@@ -24,7 +27,7 @@ class GeminiClient(LLMClient):
 
         response = await self._client.aio.models.generate_content(
             model=model,
-            contents=f"<transcript>{user_content}</transcript>",
+            contents=user_content,
             config=genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=response_schema,
