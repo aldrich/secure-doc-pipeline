@@ -3,8 +3,8 @@ import pytest
 from domain.error import ConfigurationError
 from domain.settings import Settings, settings, validate_settings
 
-class TestValidateSettings:
 
+class TestValidateSettings:
     def _make_settings(self, **overrides) -> Settings:
         defaults = {
             "api_key": "key-123",
@@ -42,81 +42,123 @@ class TestValidateSettings:
 
     def test_missing_multiple_required(self):
         s = self._make_settings(api_key="", extract_engine="", eval_engine="")
-        with pytest.raises(ConfigurationError, match="api_key, extract_engine, eval_engine"):
+        with pytest.raises(
+            ConfigurationError, match="api_key, extract_engine, eval_engine"
+        ):
             validate_settings(s)
 
     def test_gemini_extract_missing_api_key(self):
         s = self._make_settings(extract_engine="gemini", gemini_api_key="")
-        with pytest.raises(ConfigurationError, match="Gemini API key is required for extraction engine"):
+        with pytest.raises(
+            ConfigurationError, match="Gemini API key is required for extraction engine"
+        ):
             validate_settings(s)
 
     def test_gemini_extract_missing_model(self):
         s = self._make_settings(extract_engine="gemini", gemini_model_for_extraction="")
-        with pytest.raises(ConfigurationError, match="Gemini model is required for extraction engine"):
+        with pytest.raises(
+            ConfigurationError, match="Gemini model is required for extraction engine"
+        ):
             validate_settings(s)
 
     def test_gemini_eval_missing_api_key(self):
-        s = self._make_settings(extract_engine="llama", eval_engine="gemini", gemini_api_key="")
-        with pytest.raises(ConfigurationError, match="Gemini API key is required for evaluation engine"):
+        s = self._make_settings(
+            extract_engine="llama", eval_engine="gemini", gemini_api_key=""
+        )
+        with pytest.raises(
+            ConfigurationError, match="Gemini API key is required for evaluation engine"
+        ):
             validate_settings(s)
 
     def test_gemini_eval_missing_model(self):
         s = self._make_settings(eval_engine="gemini", gemini_model_for_evaluation="")
-        with pytest.raises(ConfigurationError, match="Gemini model is required for evaluation engine"):
+        with pytest.raises(
+            ConfigurationError, match="Gemini model is required for evaluation engine"
+        ):
             validate_settings(s)
 
     def test_openai_extract_missing_api_key(self):
         s = self._make_settings(extract_engine="openai", openai_api_key="")
-        with pytest.raises(ConfigurationError, match="OpenAI API key is required for extraction engine"):
+        with pytest.raises(
+            ConfigurationError, match="OpenAI API key is required for extraction engine"
+        ):
             validate_settings(s)
 
     def test_openai_extract_missing_model(self):
         s = self._make_settings(extract_engine="openai", openai_model_for_extraction="")
-        with pytest.raises(ConfigurationError, match="OpenAI model is required for extraction engine"):
+        with pytest.raises(
+            ConfigurationError, match="OpenAI model is required for extraction engine"
+        ):
             validate_settings(s)
 
     def test_openai_eval_missing_api_key(self):
         s = self._make_settings(eval_engine="openai", openai_api_key="")
-        with pytest.raises(ConfigurationError, match="OpenAI API key is required for evaluation engine"):
+        with pytest.raises(
+            ConfigurationError, match="OpenAI API key is required for evaluation engine"
+        ):
             validate_settings(s)
 
     def test_openai_eval_missing_model(self):
         s = self._make_settings(eval_engine="openai", openai_model_for_evaluation="")
-        with pytest.raises(ConfigurationError, match="OpenAI model is required for evaluation engine"):
+        with pytest.raises(
+            ConfigurationError, match="OpenAI model is required for evaluation engine"
+        ):
             validate_settings(s)
 
     def test_deepseek_extract_missing_api_key(self):
         s = self._make_settings(extract_engine="deepseek", deepseek_api_key="")
-        with pytest.raises(ConfigurationError, match="DeepSeek API key is required for extraction engine"):
+        with pytest.raises(
+            ConfigurationError,
+            match="DeepSeek API key is required for extraction engine",
+        ):
             validate_settings(s)
 
     def test_deepseek_extract_missing_model(self):
-        s = self._make_settings(extract_engine="deepseek", deepseek_model_for_extraction="")
-        with pytest.raises(ConfigurationError, match="DeepSeek model is required for extraction engine"):
+        s = self._make_settings(
+            extract_engine="deepseek", deepseek_model_for_extraction=""
+        )
+        with pytest.raises(
+            ConfigurationError, match="DeepSeek model is required for extraction engine"
+        ):
             validate_settings(s)
 
     def test_deepseek_eval_missing_api_key(self):
         s = self._make_settings(eval_engine="deepseek", deepseek_api_key="")
-        with pytest.raises(ConfigurationError, match="DeepSeek API key is required for evaluation engine"):
+        with pytest.raises(
+            ConfigurationError,
+            match="DeepSeek API key is required for evaluation engine",
+        ):
             validate_settings(s)
 
     def test_deepseek_eval_missing_model(self):
-        s = self._make_settings(eval_engine="deepseek", deepseek_model_for_evaluation="")
-        with pytest.raises(ConfigurationError, match="DeepSeek model is required for evaluation engine"):
+        s = self._make_settings(
+            eval_engine="deepseek", deepseek_model_for_evaluation=""
+        )
+        with pytest.raises(
+            ConfigurationError, match="DeepSeek model is required for evaluation engine"
+        ):
             validate_settings(s)
 
     def test_llama_extract_succeeds_without_api_key(self):
-        s = self._make_settings(extract_engine="llama", eval_engine="gemini", llama_model_for_extraction="l-model")
+        s = self._make_settings(
+            extract_engine="llama",
+            eval_engine="gemini",
+            llama_model_for_extraction="l-model",
+        )
         validate_settings(s)
 
     def test_llama_extract_missing_model(self):
         s = self._make_settings(extract_engine="llama", llama_model_for_extraction="")
-        with pytest.raises(ConfigurationError, match="Llama model is required for extraction engine"):
+        with pytest.raises(
+            ConfigurationError, match="Llama model is required for extraction engine"
+        ):
             validate_settings(s)
 
     def test_llama_eval_missing_model(self):
         s = self._make_settings(eval_engine="llama", llama_model_for_evaluation="")
-        with pytest.raises(ConfigurationError, match="Llama model is required for evaluation engine"):
+        with pytest.raises(
+            ConfigurationError, match="Llama model is required for evaluation engine"
+        ):
             validate_settings(s)
 
     def test_inactive_engine_missing_fields_ignored(self):
@@ -149,10 +191,12 @@ class TestValidateSettings:
 class TestMainApp:
     def test_app_title(self):
         from main import app
+
         assert app.title == "Secure Clinical Documentation Pipeline"
 
     def test_routers_registered(self):
         from main import app
+
         paths = []
         for route in app.routes:
             if hasattr(route, "path"):
@@ -183,7 +227,7 @@ class TestMainApp:
         monkeypatch.setattr(settings, "gemini_model_for_evaluation", "")
         monkeypatch.setattr(settings, "openai_model_for_evaluation", "")
 
-        from main import lifespan, app
+        from main import app, lifespan
 
         with pytest.raises(ConfigurationError, match="Required settings are missing"):
             async with lifespan(app):
@@ -192,18 +236,26 @@ class TestMainApp:
     @pytest.mark.asyncio
     async def test_lifespan_succeeds_when_all_settings_present(self, monkeypatch):
         for attr in [
-            "gemini_api_key", "gemini_model_for_extraction", "gemini_model_for_evaluation",
-            "openai_api_key", "openai_model_for_extraction", "openai_model_for_evaluation",
+            "gemini_api_key",
+            "gemini_model_for_extraction",
+            "gemini_model_for_evaluation",
+            "openai_api_key",
+            "openai_model_for_extraction",
+            "openai_model_for_evaluation",
             "api_key",
-            "llama_model_for_extraction", "llama_model_for_evaluation",
+            "llama_model_for_extraction",
+            "llama_model_for_evaluation",
             "ollama_host",
-            "deepseek_api_key", "deepseek_model_for_extraction", "deepseek_model_for_evaluation",
+            "deepseek_api_key",
+            "deepseek_model_for_extraction",
+            "deepseek_model_for_evaluation",
             "deepseek_base_url",
-            "extract_engine", "eval_engine",
+            "extract_engine",
+            "eval_engine",
         ]:
             monkeypatch.setattr(settings, attr, "non-empty")
 
-        from main import lifespan, app
+        from main import app, lifespan
 
         async with lifespan(app):
             assert app.state.container is not None

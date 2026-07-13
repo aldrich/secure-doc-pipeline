@@ -2,24 +2,15 @@ from unittest.mock import Mock
 
 import pytest
 
+from clients.deepseek import DeepSeekClient
+from clients.gemini import GeminiClient
+from clients.ollama import OllamaClient
+from clients.openai import OpenAIClient
 from domain.container import DependencyContainer
 from domain.error import ConfigurationError
-from evaluation.evaluation_engine import (
-    DeepSeekEvaluator,
-    GeminiEvaluator,
-    LlamaEvaluator,
-    OpenAIEvaluator,
-)
-from extraction.extraction_engine import (
-    DeepSeekExtractor,
-    GeminiExtractor,
-    LlamaExtractor,
-    OpenAIExtractor,
-)
 
 
 class TestDependencyContainer:
-
     def make_settings(self, **overrides):
         settings = Mock()
         settings.extract_engine = "llama"
@@ -44,64 +35,64 @@ class TestDependencyContainer:
             setattr(settings, k, v)
         return settings
 
-    def test_create_openai_extractor(self):
+    def test_create_openai_extractor_client(self):
         settings = self.make_settings(extract_engine="openai")
         container = DependencyContainer(settings)
         engine = container.create_extract_engine()
-        assert isinstance(engine, OpenAIExtractor)
+        assert isinstance(engine.client, OpenAIClient)
 
-    def test_create_gemini_extractor(self):
+    def test_create_gemini_extractor_client(self):
         settings = self.make_settings(extract_engine="gemini")
         container = DependencyContainer(settings)
         engine = container.create_extract_engine()
-        assert isinstance(engine, GeminiExtractor)
+        assert isinstance(engine.client, GeminiClient)
 
-    def test_create_llama_extractor(self):
+    def test_create_llama_extractor_client(self):
         settings = self.make_settings(extract_engine="llama")
         container = DependencyContainer(settings)
         engine = container.create_extract_engine()
-        assert isinstance(engine, LlamaExtractor)
+        assert isinstance(engine.client, OllamaClient)
 
-    def test_create_deepseek_extractor(self):
+    def test_create_deepseek_extractor_client(self):
         settings = self.make_settings(extract_engine="deepseek")
         container = DependencyContainer(settings)
         engine = container.create_extract_engine()
-        assert isinstance(engine, DeepSeekExtractor)
+        assert isinstance(engine.client, DeepSeekClient)
 
-    def test_create_openai_evaluator(self):
+    def test_create_openai_evaluator_client(self):
         settings = self.make_settings(eval_engine="openai")
         container = DependencyContainer(settings)
         engine = container.create_eval_engine()
-        assert isinstance(engine, OpenAIEvaluator)
+        assert isinstance(engine.client, OpenAIClient)
 
-    def test_create_gemini_evaluator(self):
+    def test_create_gemini_evaluator_client(self):
         settings = self.make_settings(eval_engine="gemini")
         container = DependencyContainer(settings)
         engine = container.create_eval_engine()
-        assert isinstance(engine, GeminiEvaluator)
+        assert isinstance(engine.client, GeminiClient)
 
-    def test_create_llama_evaluator(self):
+    def test_create_llama_evaluator_client(self):
         settings = self.make_settings(eval_engine="llama")
         container = DependencyContainer(settings)
         engine = container.create_eval_engine()
-        assert isinstance(engine, LlamaEvaluator)
+        assert isinstance(engine.client, OllamaClient)
 
-    def test_create_deepseek_evaluator(self):
+    def test_create_deepseek_evaluator_client(self):
         settings = self.make_settings(eval_engine="deepseek")
         container = DependencyContainer(settings)
         engine = container.create_eval_engine()
-        assert isinstance(engine, DeepSeekEvaluator)
+        assert isinstance(engine.client, DeepSeekClient)
 
     def test_unsupported_extraction_engine(self):
         settings = self.make_settings(extract_engine="invalid")
         container = DependencyContainer(settings)
-        with pytest.raises(ConfigurationError, match="Unsupported extraction engine"):
+        with pytest.raises(ConfigurationError, match="Unsupported engine: invalid"):
             container.create_extract_engine()
 
     def test_unsupported_evaluation_engine(self):
         settings = self.make_settings(eval_engine="invalid")
         container = DependencyContainer(settings)
-        with pytest.raises(ConfigurationError, match="Unsupported evaluation engine"):
+        with pytest.raises(ConfigurationError, match="Unsupported engine: invalid"):
             container.create_eval_engine()
 
     def test_eval_engine_property_caches(self):

@@ -27,3 +27,6 @@ wheels/
 # OpenCode
 opencode.json
 tui.json
+
+# from opencode-ignore plugin
+.ignore

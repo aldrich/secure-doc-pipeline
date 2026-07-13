@@ -14,22 +14,22 @@ A FastAPI-based pipeline for extracting structured clinical summaries from thera
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Processing Pipeline                          │
-│                                                                 │
-│  ┌────────────────────┐         ┌─────────────────────┐         │
-│  │   Extraction       │         │   Evaluation        │         │
-│  │   (Async)          │────────▶│   (Background)      │         │
-│  │                    │         │                     │         │
-│  │ • Transcribe       │         │ • Score faithfulness│         │
-│  │ • Structured       │         │ • Detect            │         │
-│  │   data             │         │   hallucinations    │         │
-│  │   (ClinicalSummary)│         │ • Find              │         │
-│  │                    │         │   omissions         │         │
-│  │                    │         │ • Identify          │         │
-│  │                    │         │   contradictions    │         │
-│  └────────────────────┘         └─────────────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                    Processing Pipeline                            │
+│                                                                   │
+│  ┌─────────────────────┐         ┌──────────────────────┐         │
+│  │   Extraction        │         │   Evaluation         │         │
+│  │   (Async)           │────────▶│   (Background)       │         │
+│  │                     │         │                      │         │
+│  │ • Extract           │         │ • Score faithfulness │         │
+│  │ • Structured        │         │ • Detect             │         │
+│  │   data              │         │   hallucinations     │         │
+│  │   (ClinicalSummary) │         │ • Find               │         │
+│  │                     │         │   omissions          │         │
+│  │                     │         │ • Identify           │         │
+│  │                     │         │   contradictions     │         │
+│  └─────────────────────┘         └──────────────────────┘         │
+└───────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
@@ -228,8 +228,7 @@ uv run pytest
 │   ├── error.py               # Custom exceptions
 │   └── structured_logger.py   # JSON logging formatter
 ├── api/
-│   └── routes/
-│       └── transformers.py    # API endpoints
+│   └── routes/                    # Empty; routes defined inline in main.py
 ├── extraction/
 │   ├── extraction_engine.py   # LLM extraction backends
 │   └── extractor.py           # Unified extraction interface

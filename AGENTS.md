@@ -8,7 +8,7 @@
 | Dev server | `uv run poe server` (or `uv run uvicorn main:app --reload`) |
 | Run all tests | `uv run pytest` |
 | Run single test file | `uv run pytest tests/test_extraction/` |
-| Run single test | `uv run pytest tests/test_extraction/test_extraction_engine.py::TestExtractionEngine::test_llama_extractor_extract_success -v` |
+| Run single test | `uv run pytest tests/test_extraction/test_extraction_engine.py::TestExtractionEngine::test_extract_success -v` |
 
 ## Key patterns
 
@@ -29,15 +29,20 @@
 
 ## Engine injection pattern
 
-Every engine receives all config via constructor — never read `settings` directly:
+Two-layer architecture: **Client** handles API communication, **Engine** handles business logic.
 
-| Engine | Constructor signature |
+### Client layer (`LLMClient` subclasses)
+
+| Client | Constructor signature |
 |---|---|
-| `OpenAIExtractor` | `(api_key, model)` |
-| `GeminiExtractor` | `(api_key, model)` |
-| `DeepSeekExtractor` | `(api_key, model, base_url)` |
-| `LlamaExtractor` | `(model, ollama_host)` |
-| Same pattern applies to `*Evaluator` variants. |
+| `OpenAIClient` | `(api_key, timeout=120)` |
+| `GeminiClient` | `(api_key, timeout=120)` |
+| `DeepSeekClient` | `(api_key, base_url, timeout=120)` |
+| `OllamaClient` | `(ollama_host, timeout=120)` |
+
+### Engine layer (`LLMEngine` subclasses)
+
+`LLMEngine.__init__(client, model, max_retries=3, retry_base_delay=1.0, retry_max_delay=30.0)` — inherited by `ExtractionEngine` and `EvaluationEngine`.
 
 When adding a new engine or modifying constructor params, update `domain/container.py`.
 
@@ -45,5 +50,5 @@ When adding a new engine or modifying constructor params, update `domain/contain
 
 - **OpenAI**: uses `client.responses.parse()` (beta Responses API), NOT `chat.completions.create`.
 - **DeepSeek**: uses `AsyncOpenAI` client with custom `base_url`. Appends JSON schema to system prompt + uses `response_format={"type": "json_object"}`.
-- **Gemini**: uses `client.aio.models.generate_content()` (sync for extraction, async for evaluation).
+- **Gemini**: uses `client.aio.models.generate_content()` (both extraction and evaluation are async).
 - **Llama**: uses `ollama.AsyncClient` — `host` is injected via constructor.
