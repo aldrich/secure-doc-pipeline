@@ -28,16 +28,24 @@ A FastAPI-based pipeline for extracting structured clinical summaries from thera
 │  │                     │         │   omissions          │         │
 │  │                     │         │ • Identify           │         │
 │  │                     │         │   contradictions     │         │
+│  │                     │         │                      │         │
+│  │                     │         │ • Persist results    │         │
+│  │                     │         │   to PostgreSQL      │         │
 │  └─────────────────────┘         └──────────────────────┘         │
 └───────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                    Supported Engines                             │
+│                    Client Layer (clients/)                        │
 │                                                                  │
-│  OpenAI    │ Gemini    │ DeepSeek │ Ollama (Llama)               │
-│  gpt-4.1   │ gemini-2  │ deepseek │ llama3.x                     │
-│  nano/mini │ .5-flash  │ v4-flash │                              │
+│  LLMClient (ABC) ─┬── OpenAIClient                              │
+│                   ├── GeminiClient                              │
+│                   ├── DeepSeekClient                            │
+│                   └── OllamaClient                              │
+│                                                                  │
+│  All implement: generate_structured(model, system_prompt,        │
+│                   user_content, response_schema) → BaseModel     │
+│  All wrap: with_llm_retry() for automatic retry on failures      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -85,6 +93,15 @@ LLAMA_MODEL_FOR_EVALUATION=llama3.1:8b
 
 # API Authentication
 API_KEY=your-secret-api-key
+
+# PostgreSQL (for persisting evaluation results)
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/clinical_pipeline
+
+# Retry configuration (optional)
+LLM_MAX_RETRIES=3
+LLM_RETRY_BASE_DELAY=1.0
+LLM_RETRY_MAX_DELAY=30.0
+LLM_TIMEOUT=120
 ```
 
 ## Environment Variables
@@ -107,6 +124,11 @@ API_KEY=your-secret-api-key
 | `DEEPSEEK_MODEL_FOR_EXTRACTION` | DeepSeek model for extraction | `deepseek-v4-flash` | When using deepseek engine |
 | `DEEPSEEK_MODEL_FOR_EVALUATION` | DeepSeek model for evaluation | `deepseek-v4-pro` | When using deepseek engine |
 | `DEEPSEEK_BASE_URL` | DeepSeek API base URL | `https://api.deepseek.com` | When using deepseek engine |
+| `DATABASE_URL` | PostgreSQL connection string for persisting evaluations | `postgresql+asyncpg://postgres:postgres@localhost:5433/clinical_pipeline` | For evaluation persistence |
+| `LLM_MAX_RETRIES` | Maximum retry attempts on LLM API failures | `3` | No |
+| `LLM_RETRY_BASE_DELAY` | Base delay (seconds) for exponential backoff | `1.0` | No |
+| `LLM_RETRY_MAX_DELAY` | Maximum delay (seconds) between retries | `30.0` | No |
+| `LLM_TIMEOUT` | HTTP timeout in seconds for LLM API calls | `120` | No |
 
 ## Running
 
@@ -205,6 +227,24 @@ The evaluation engine returns a `SummaryEvaluation` with:
 | `contradictions` | array | Statements contradicting the transcript |
 | `reasoning` | string | Detailed evaluation rationale |
 
+## Retry Mechanism
+
+All LLM API calls across all engines are wrapped with `with_llm_retry()` which provides:
+
+- Exponential backoff with jitter: `delay = base_delay * 2^attempt + random(0, 0.5 * base_delay)`
+- Configurable via env vars: `LLM_MAX_RETRIES`, `LLM_RETRY_BASE_DELAY`, `LLM_RETRY_MAX_DELAY`
+- Retryable failures: `TimeoutException`, `ConnectError`, `RemoteProtocolError`, HTTP 429/5xx
+- Non-retryable failures (e.g., auth errors) propagate immediately
+
+## Evaluation Persistence
+
+Evaluation results (`SummaryEvaluation`) are persisted to PostgreSQL via SQLAlchemy async:
+
+- **Table**: `evaluations`
+- **Schema**: auto-created on startup via `Base.metadata.create_all`
+- **Fields**: session_id, score, faithful, reasoning, model, latency_seconds, unsupported_claims, omitted_information, contradictions, created_at
+- **Repository**: `EvaluationRepository` in `domain/repository.py`
+
 ## Testing
 
 ```bash
@@ -219,13 +259,24 @@ uv run pytest
 ├── Dockerfile                 # Container build
 ├── docker-compose.yml         # Docker orchestration
 ├── .env.example               # Environment template
+├── clients/
+│   ├── base.py                # LLMClient ABC + LLMEngine base class
+│   ├── openai.py              # OpenAI client (Responses API)
+│   ├── gemini.py              # Gemini client (generate_content)
+│   ├── deepseek.py            # DeepSeek client (AsyncOpenAI compat)
+│   └── ollama.py              # Ollama client (AsyncClient)
 ├── docs/
 │   └── env-configuration.md   # Detailed env var reference
 ├── domain/
-│   ├── settings.py            # Configuration management
-│   ├── container.py           # Dependency injection
+│   ├── settings.py            # Configuration management (pydantic-settings)
+│   ├── container.py           # Dependency injection container
 │   ├── auth.py                # API key authentication
 │   ├── error.py               # Custom exceptions
+│   ├── database.py            # SQLAlchemy async engine + session factory
+│   ├── models.py              # SQLAlchemy ORM models (Evaluation)
+│   ├── repository.py          # EvaluationRepository (PostgreSQL persistence)
+│   ├── retry.py               # with_llm_retry() decorator (exponential backoff)
+│   ├── dependencies.py        # FastAPI dependency injection for container
 │   └── structured_logger.py   # JSON logging formatter
 ├── api/
 │   └── routes/                    # Empty; routes defined inline in main.py
@@ -235,13 +286,19 @@ uv run pytest
 ├── evaluation/
 │   ├── evaluation_engine.py   # LLM evaluation backends
 │   └── evaluator.py           # Unified evaluation interface
+├── services/
+│   ├── __init__.py
+│   └── pipeline.py            # PipelineService orchestrator
 ├── schemas/
 │   ├── clinical_summary.py    # Output schema
 │   ├── session_request.py     # Input schema
 │   └── session_response.py    # Response schema
-└── prompts/
-    ├── extraction.py          # Extraction system prompt
-    └── evaluation.py          # Evaluation system prompt
+├── prompts/
+│   ├── extraction.py          # Extraction system prompt
+│   └── evaluation.py          # Evaluation system prompt
+└── notebooks/
+    ├── evaluation.ipynb       # Evaluation exploration notebook
+    └── extraction.ipynb       # Extraction exploration notebook
 ```
 
 ## Supported Engines
