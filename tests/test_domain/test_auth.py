@@ -29,3 +29,10 @@ class TestVerifyApiKey:
             await verify_api_key(api_key="some-key")
         assert exc.value.status_code == 401
         assert "Invalid or missing" in exc.value.detail
+
+    async def test_blank_api_key(self, mocker):
+        mocker.patch.object(settings, "api_key", None)
+        with pytest.raises(HTTPException) as exc:
+            await verify_api_key(api_key="some-key")
+        assert exc.value.status_code == 401
+        assert "Invalid or missing" in exc.value.detail
