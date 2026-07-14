@@ -2,7 +2,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from clients.base import LLMClient
-from domain.error import EvaluationError
+from domain.error import ExtractionError
 
 
 class DeepSeekClient(LLMClient):
@@ -37,7 +37,7 @@ class DeepSeekClient(LLMClient):
 
         raw_content = response.choices[0].message.content
         if raw_content is None:
-            raise EvaluationError("Empty response from DeepSeek")
+            raise ExtractionError("Empty response from DeepSeek")
 
         result = response_schema.model_validate_json(raw_content)
         return result
