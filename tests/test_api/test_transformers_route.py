@@ -45,6 +45,7 @@ class TestProcessSession:
         container.pipeline_service = PipelineService(
             extractor=Mock(),
             evaluator=eval_engine,
+            evaluation_repo=AsyncMock()
         )
         return container
 

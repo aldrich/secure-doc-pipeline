@@ -11,17 +11,24 @@ This module is responsible for:
 The application exposes versioned endpoints under `/api/v1`.
 """
 
-import sys
 import logging
-
+import sys
 from contextlib import asynccontextmanager
+
 from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.responses import JSONResponse
 
-from domain.auth import router as auth_router, verify_api_key
+from domain.auth import router as auth_router
+from domain.auth import verify_api_key
 from domain.container import DependencyContainer
 from domain.dependencies import get_container
-from domain.error import AuthenticationError, ConfigurationError, EvaluationError, ExtractionError, ProviderError
+from domain.error import (
+    AuthenticationError,
+    ConfigurationError,
+    EvaluationError,
+    ExtractionError,
+    ProviderError,
+)
 from domain.settings import settings, validate_settings
 from domain.structured_logger import StructuredFormatter
 from schemas.session_request import SessionRequest
@@ -31,6 +38,7 @@ handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(StructuredFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
@@ -39,22 +47,38 @@ async def lifespan(app: FastAPI):
 
     validate_settings(settings)
 
+    from domain.database import init_db
+
+    await init_db()
+
     yield
 
-app = FastAPI(
-    title="Secure Clinical Documentation Pipeline", lifespan=lifespan
-)
+    from domain.database import close_db
+
+    await close_db()
+
+
+app = FastAPI(title="Secure Clinical Documentation Pipeline", lifespan=lifespan)
 
 # Register authentication endpoints.
 app.include_router(auth_router, prefix="/api/v1")
 
-@app.post("/api/v1/process-session", status_code=202, response_model=SessionResponse, dependencies=[Depends(verify_api_key)])
+
+@app.post(
+    "/api/v1/process-session",
+    status_code=202,
+    response_model=SessionResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def process_session(
     payload: SessionRequest,
     background_tasks: BackgroundTasks,
-    container: DependencyContainer = Depends(get_container)
+    container: DependencyContainer = Depends(get_container),
 ):
-    return await container.pipeline_service.process_session(payload.transcript, background_tasks)
+    return await container.pipeline_service.process_session(
+        payload.transcript, background_tasks
+    )
+
 
 @app.exception_handler(ConfigurationError)
 async def config_handler(request, exc):
@@ -63,12 +87,14 @@ async def config_handler(request, exc):
         content={"detail": str(exc)},
     )
 
+
 @app.exception_handler(AuthenticationError)
 async def auth_handler(request, exc):
     return JSONResponse(
         status_code=401,
         content={"detail": str(exc)},
     )
+
 
 @app.exception_handler(ProviderError)
 async def provider_handler(request, exc):
@@ -77,6 +103,7 @@ async def provider_handler(request, exc):
         content={"detail": str(exc)},
     )
 
+
 @app.exception_handler(ExtractionError)
 async def extraction_handler(request, exc):
     return JSONResponse(
@@ -84,12 +111,14 @@ async def extraction_handler(request, exc):
         content={"detail": str(exc)},
     )
 
+
 @app.exception_handler(EvaluationError)
 async def evaluation_handler(request, exc):
     return JSONResponse(
         status_code=422,
         content={"detail": str(exc)},
     )
+
 
 @app.exception_handler(Exception)
 async def generic_handler(request, exc):

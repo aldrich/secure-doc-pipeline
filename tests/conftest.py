@@ -56,3 +56,7 @@ def mock_eval_engine() -> AsyncMock:
     engine = AsyncMock()
     engine.model = "test-model"
     return engine
+
+@pytest.fixture
+def mock_evaluation_repo() -> AsyncMock:
+    return AsyncMock()

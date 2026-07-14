@@ -1,22 +1,35 @@
+from unittest import mock
+
 import pytest
 
 from domain.error import EvaluationError, ProviderError
 from evaluation.evaluator import run_evaluation
 from schemas.evaluation_metrics import SummaryEvaluation
 
+
 class TestRunEvaluation:
     @pytest.mark.asyncio
-    async def test_returns_none(self, mock_eval_engine, sample_clinical_summary):
+    async def test_returns_none(
+        self, mock_eval_engine, sample_clinical_summary, mock_evaluation_repo
+    ):
         mock_eval_engine.evaluate.return_value = None
 
         result = await run_evaluation(
-            sample_clinical_summary, "test transcript", "sess_001", mock_eval_engine
+            sample_clinical_summary,
+            "test transcript",
+            "sess_001",
+            mock_eval_engine,
+            mock_evaluation_repo,
         )
 
         assert result is None
 
+        mock_evaluation_repo.store.assert_not_called()
+
     @pytest.mark.asyncio
-    async def test_passes_correct_args_to_engine(self, mock_eval_engine, sample_clinical_summary):
+    async def test_passes_correct_args_to_engine(
+        self, mock_eval_engine, sample_clinical_summary, mock_evaluation_repo
+    ):
         expected = SummaryEvaluation(
             faithful=True,
             score=1.0,
@@ -27,23 +40,55 @@ class TestRunEvaluation:
         )
         mock_eval_engine.evaluate.return_value = expected
 
-        await run_evaluation(sample_clinical_summary, "Hello transcript", "sess_002", mock_eval_engine)
+        await run_evaluation(
+            sample_clinical_summary,
+            "Hello transcript",
+            "sess_002",
+            mock_eval_engine,
+            mock_evaluation_repo,
+        )
 
         mock_eval_engine.evaluate.assert_awaited_once_with(
             sample_clinical_summary, "Hello transcript", "sess_002"
         )
 
+        mock_evaluation_repo.store.assert_awaited_once_with(
+            session_id="sess_002",
+            metrics=expected,
+            model="test-model",
+            latency=mock.ANY,
+        )
+
     @pytest.mark.asyncio
-    async def test_propagates_engine_errors(self, mock_eval_engine, sample_clinical_summary):
+    async def test_propagates_engine_errors(
+        self, mock_eval_engine, sample_clinical_summary, mock_evaluation_repo
+    ):
         mock_eval_engine.evaluate.side_effect = EvaluationError("Eval failed")
 
         with pytest.raises(EvaluationError, match="Eval failed"):
-            await run_evaluation(sample_clinical_summary, "test", "sess_003", mock_eval_engine)
+            await run_evaluation(
+                sample_clinical_summary,
+                "test",
+                "sess_003",
+                mock_eval_engine,
+                mock_evaluation_repo,
+            )
+
+        mock_evaluation_repo.store.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_provider_error_returns_none(self, mock_eval_engine, sample_clinical_summary):
+    async def test_provider_error_returns_none(
+        self, mock_eval_engine, sample_clinical_summary, mock_evaluation_repo
+    ):
         mock_eval_engine.evaluate.side_effect = ProviderError("Upstream failed")
 
-        result = await run_evaluation(sample_clinical_summary, "test", "sess_004", mock_eval_engine)
+        result = await run_evaluation(
+            sample_clinical_summary,
+            "test",
+            "sess_004",
+            mock_eval_engine,
+            mock_evaluation_repo,
+        )
 
         assert result is None
+        mock_evaluation_repo.store.assert_not_called()

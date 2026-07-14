@@ -1,11 +1,8 @@
-import asyncio
 import logging
-import sys
 import time
-import uuid
 
 from domain.error import ProviderError
-from domain.structured_logger import StructuredFormatter
+from domain.repository import EvaluationRepository
 from evaluation.evaluation_engine import EvaluationEngine
 from schemas.clinical_summary import ClinicalSummary
 
@@ -17,6 +14,7 @@ async def run_evaluation(
     source_transcript: str,
     session_id: str,
     evaluator: EvaluationEngine,
+    repo: EvaluationRepository,
 ):
     """Unified evaluation function using the configured engine."""
 
@@ -47,37 +45,44 @@ async def run_evaluation(
             },
         )
 
-
-async def main():
-
-    source_transcript = """\
-Patient initially stated, "I didn't do any physical therapy or movement work over the weekend at all."
-However, later in the review, when prompted about specific logs, they recalled and corrected themselves:
-"Oh, wait, I actually spent about 20 minutes doing my balance and gait exercises on Saturday afternoon
-with the home nurse." They reported feeling stable throughout.
-"""
-
-    sample_summary = ClinicalSummary(
-        patient_mood="",
-        exercises_completed=["balance", "gait"],
-        symptoms_mentioned=[],
-        next_steps="schedule for 60 mins of strength exercises",
-    )
-
-    session_id = uuid.uuid4().hex[:8]
-
-    from domain.container import DependencyContainer
-
-    container = DependencyContainer()
-
-    await run_evaluation(
-        sample_summary, source_transcript, session_id, container.eval_engine
-    )
+        await repo.store(
+            session_id=session_id,
+            metrics=metrics,
+            model=evaluator.model,
+            latency=elapsed,
+        )
 
 
-if __name__ == "__main__":
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(StructuredFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+# async def main():
 
-    asyncio.run(main())
+#     source_transcript = """\
+# Patient initially stated, "I didn't do any physical therapy or movement work over the weekend at all."
+# However, later in the review, when prompted about specific logs, they recalled and corrected themselves:
+# "Oh, wait, I actually spent about 20 minutes doing my balance and gait exercises on Saturday afternoon
+# with the home nurse." They reported feeling stable throughout.
+# """
+
+#     sample_summary = ClinicalSummary(
+#         patient_mood="",
+#         exercises_completed=["balance", "gait"],
+#         symptoms_mentioned=[],
+#         next_steps="schedule for 60 mins of strength exercises",
+#     )
+
+#     session_id = uuid.uuid4().hex[:8]
+
+#     from domain.container import DependencyContainer
+
+#     container = DependencyContainer()
+
+#     await run_evaluation(
+#         sample_summary, source_transcript, session_id, container.eval_engine
+#     )
+
+
+# if __name__ == "__main__":
+#     handler = logging.StreamHandler(sys.stdout)
+#     handler.setFormatter(StructuredFormatter())
+#     logging.basicConfig(level=logging.INFO, handlers=[handler])
+
+#     asyncio.run(main())

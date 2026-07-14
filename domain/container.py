@@ -1,9 +1,13 @@
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
 from clients.base import LLMClient
 from clients.deepseek import DeepSeekClient
 from clients.gemini import GeminiClient
 from clients.ollama import OllamaClient
 from clients.openai import OpenAIClient
+from domain.database import create_session_factory
 from domain.error import ConfigurationError
+from domain.repository import EvaluationRepository
 from domain.settings import settings
 from evaluation.evaluation_engine import EvaluationEngine
 from extraction.extraction_engine import ExtractionEngine
@@ -31,6 +35,9 @@ class DependencyContainer:
         self._extract_engine: ExtractionEngine | None = None
         self._eval_engine: EvaluationEngine | None = None
         self._pipeline_service: PipelineService | None = None
+
+        self._session_factory: async_sessionmaker | None = None
+        self._evaluation_repo: EvaluationRepository | None = None
 
     def _retry_kwargs(self):
         return {
@@ -70,14 +77,30 @@ class DependencyContainer:
             **self._retry_kwargs(),
         )
 
+    def make_session_factory(self):
+        if self._session_factory is None:
+            self._session_factory = create_session_factory()
+        return self._session_factory
+
+    def create_evaluation_repo(self) -> EvaluationRepository:
+        if self._evaluation_repo is None:
+            self._evaluation_repo = EvaluationRepository(self.make_session_factory())
+        return self._evaluation_repo
+
     def create_pipeline_service(self) -> PipelineService:
-        return PipelineService(self.extract_engine, self.eval_engine)
+        return PipelineService(self.extract_engine, self.eval_engine, self.evaluation_repo)
 
     @property
     def eval_engine(self) -> EvaluationEngine:
         if self._eval_engine is None:
             self._eval_engine = self.create_eval_engine()
         return self._eval_engine
+
+    @property
+    def evaluation_repo(self) -> EvaluationRepository:
+        if self._evaluation_repo is None:
+            self._evaluation_repo = self.create_evaluation_repo()
+        return self._evaluation_repo
 
     @property
     def extract_engine(self) -> ExtractionEngine:

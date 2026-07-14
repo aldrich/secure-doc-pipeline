@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import BackgroundTasks
 
+from domain.repository import EvaluationRepository
 from evaluation.evaluation_engine import EvaluationEngine
 from evaluation.evaluator import run_evaluation
 from extraction.extraction_engine import ExtractionEngine
@@ -12,10 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineService:
-    def __init__(self, extractor: ExtractionEngine, evaluator: EvaluationEngine):
+    def __init__(
+        self,
+        extractor: ExtractionEngine,
+        evaluator: EvaluationEngine,
+        evaluation_repo: EvaluationRepository,
+    ):
 
         self.extractor = extractor
         self.evaluator = evaluator
+        self.repo = evaluation_repo
 
     async def process_session(self, transcript: str, background_tasks: BackgroundTasks):
 
@@ -25,7 +32,12 @@ class PipelineService:
         structured_output = await run_extraction(transcript, session_id, self.extractor)
 
         background_tasks.add_task(
-            run_evaluation, structured_output, transcript, session_id, self.evaluator
+            run_evaluation,
+            structured_output,
+            transcript,
+            session_id,
+            self.evaluator,
+            self.repo,
         )
 
         return {

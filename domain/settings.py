@@ -34,7 +34,9 @@ class Settings(BaseSettings):
     llm_retry_max_delay: float = 30.0
     llm_timeout: int = 120
     
-    api_key: str = ""    
+    api_key: str = ""   
+
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/clinical_pipeline"
     
     model_config = { "env_file": ".env", "env_file_encoding": "utf-8" }
     

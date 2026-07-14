@@ -30,8 +30,10 @@ services:
       - LLAMA_MODEL_FOR_EVALUATION=${LLAMA_MODEL_FOR_EVALUATION}
       - API_KEY=${API_KEY}
       - UV_LINK_MODE=copy
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/clinical_pipeline
     depends_on:
       - ollama-service
+      - postgres
     volumes:
       - .:/app
       - venv-data:/app/.venv
@@ -49,10 +51,26 @@ services:
       - pipeline-network
     attach: false
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: clinical_postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: clinical_pipeline
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pipeline-network
+    attach: false
+
 volumes:
   ollama_storage:
     name: ollama_storage
   venv-data:
+  postgres_data:
 
 networks:
   pipeline-network:
