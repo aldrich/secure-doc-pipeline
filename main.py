@@ -37,6 +37,7 @@ from schemas.session_response import SessionResponse
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(StructuredFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -79,12 +80,12 @@ async def process_session(
         payload.transcript, background_tasks
     )
 
-
 @app.exception_handler(ConfigurationError)
 async def config_handler(request, exc):
+    logger.exception("configuration_error", extra={"detail": str(exc)})
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": "Configuration error"},
     )
 
 
@@ -122,7 +123,8 @@ async def evaluation_handler(request, exc):
 
 @app.exception_handler(Exception)
 async def generic_handler(request, exc):
+    logger.exception("generic_exception", extra={"detail": str(exc)})
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": "Internal server error"},
     )
